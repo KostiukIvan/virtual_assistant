@@ -4,7 +4,7 @@ import webrtcvad
 from transformers import pipeline
 from pkg.utils import float_to_pcm16
 from pkg.model_clients.vad_model import VAD
-from pkg.config import HF_API_TOKEN
+from pkg.config import HF_API_TOKEN, device, STT_MODEL_REMOTE, STT_MODEL_LOCAL, STT_MODE
 import requests 
 import os     
 import io      # <-- Added import
@@ -12,9 +12,9 @@ import wave    # <-- Added import
 
 # ===== Base STT =====
 class SpeechToTextModel:
-    def __init__(self, model_name: str, device: int = 0):
+    def __init__(self, model: str, device: int = 0):
         self.device = device
-        self.model_name = model_name
+        self.model = model
     
     def audio_to_text(self, buffer: np.ndarray, sample_rate: int) -> str:
         raise NotImplementedError
@@ -22,10 +22,10 @@ class SpeechToTextModel:
 
 # ===== Local HuggingFace STT =====
 class LocalSpeechToTextModel(SpeechToTextModel):
-    def __init__(self, model_name: str = "openai/whisper-small", device: int = 0):
-        super().__init__(model_name, device)
+    def __init__(self, model: str = STT_MODEL_LOCAL, device: int = 0):
+        super().__init__(model, device)
         # load pipeline once (local execution)
-        self.asr = pipeline("automatic-speech-recognition", model=self.model_name, device=self.device)
+        self.asr = pipeline("automatic-speech-recognition", model=self.model, device=self.device)
 
     def audio_to_text(self, buffer: np.ndarray, sample_rate: int = 16000) -> str:
         """
@@ -38,8 +38,8 @@ class LocalSpeechToTextModel(SpeechToTextModel):
 
 # ===== Remote HuggingFace STT (New Class) =====
 class RemoteSpeechToTextModel(SpeechToTextModel):
-    def __init__(self, model_name: str = "openai/whisper-large-v3", hf_token: str = None):
-        super().__init__(model_name)
+    def __init__(self, model: str = STT_MODEL_REMOTE, hf_token: str = None):
+        super().__init__(model)
         self.hf_token = hf_token or os.getenv("HF_TOKEN")
         if not self.hf_token:
             raise ValueError(
@@ -47,7 +47,7 @@ class RemoteSpeechToTextModel(SpeechToTextModel):
                 "Pass it as an argument or set the HF_TOKEN environment variable."
             )
         
-        self.api_url = f"https://api-inference.huggingface.co/models/{self.model_name}"
+        self.api_url = model
         self.headers = {
             "Authorization": f"Bearer {self.hf_token}",
             "Content-Type": "audio/wav"
@@ -96,15 +96,10 @@ def main():
 
     vad = VAD(vad_level=3)
 
-    # --- CHOOSE YOUR MODEL ---
-    # 1. Local Model (runs on your machine)
-    # stt = LocalSpeechToTextModel("openai/whisper-small")
-    
-    # 2. Remote Model (uses Hugging Face Inference API)
-    # Note: Using a larger model like whisper-1 is recommended for the API.
-    print("HF_API_TOKEN=",HF_API_TOKEN)
-    stt = RemoteSpeechToTextModel("openai/whisper-large-v3", hf_token=HF_API_TOKEN)
-
+    if STT_MODE == "local":
+        stt = LocalSpeechToTextModel(model=STT_MODEL_LOCAL, device=device)
+    else:
+        stt = RemoteSpeechToTextModel(model=STT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
 
     buffer = []
     recording = False

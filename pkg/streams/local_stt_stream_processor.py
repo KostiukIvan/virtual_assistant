@@ -3,8 +3,9 @@ import threading
 import numpy as np
 import time
 import torch
+from pkg.config import device, HF_API_TOKEN, STT_MODE, STT_MODEL_LOCAL, STT_MODEL_REMOTE
 from pkg.model_clients.vad_model import VAD
-from pkg.model_clients.stt_model import LocalSpeechToTextModel
+from pkg.model_clients.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
 from pkg.streams.local_voice_stream_ingestor import VoiceFrameIngestor
 
 class SpeechToTextStreamProcessor:
@@ -91,16 +92,14 @@ class SpeechToTextStreamProcessor:
 
 
 if __name__ == '__main__':
-    device = 0 if torch.cuda.is_available() else -1
-    print(f"Using device: {'GPU' if device==0 else 'CPU'}")
-    
     # 1. Initialize the core components and both queues
     SAMPLE_RATE = 16000
     AUDIO_QUEUE = queue.Queue()  # For audio frames from ingestor to processor
     TEXT_QUEUE = queue.Queue()   # For text from processor to main thread
     VAD_MODEL = VAD(vad_level=3)
-    STT_MODEL = LocalSpeechToTextModel(device=device)
-
+    print(f"Loading STT model ({STT_MODE})...")
+    STT_MODEL = LocalSpeechToTextModel(STT_MODEL_LOCAL, device=device) if STT_MODE == "local" else RemoteSpeechToTextModel(STT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
+    
     # 2. Initialize the updated SpeechToTextStreamProcessor
     processor = SpeechToTextStreamProcessor(
         stt_model=STT_MODEL,

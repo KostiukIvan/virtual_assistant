@@ -3,6 +3,7 @@ import threading
 import sounddevice as sd
 import time
 import torch
+from pkg.config import device, HF_API_TOKEN, STT_MODE, STT_MODEL_LOCAL, STT_MODEL_REMOTE, TTT_MODE, TTT_MODEL_REMOTE, TTT_MODEL_LOCAL, TTS_MODE, TTS_MODEL_LOCAL, TTS_MODEL_REMOTE
 
 class TextToSpeechStreamProcessor:
     """
@@ -68,16 +69,14 @@ class TextToSpeechStreamProcessor:
 
 # Assume your other classes are imported
 from pkg.model_clients.vad_model import VAD
-from pkg.model_clients.stt_model import LocalSpeechToTextModel
-from pkg.model_clients.ttt_model import LocalTextToTextModel
-from pkg.model_clients.tts_model import LocalTextToSpeechModel
+from pkg.model_clients.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
+from pkg.model_clients.ttt_model import LocalTextToTextModel, RemoteTextToTextModel
+from pkg.model_clients.tts_model import LocalTextToSpeechModel, RemoteTextToSpeechModel
 from pkg.streams.local_voice_stream_ingestor import VoiceFrameIngestor
 from pkg.streams.local_stt_stream_processor import SpeechToTextStreamProcessor
 from pkg.streams.local_ttt_stream_processor import TextToTextStreamProcessor
 
 if __name__ == '__main__':
-    device = 0 if torch.cuda.is_available() else -1
-    print(f"Using device: {'GPU' if device==0 else 'CPU'}")
     # 1. Initialize all models and queues for the full pipeline
     SAMPLE_RATE = 16000
     AUDIO_QUEUE = queue.Queue()
@@ -86,9 +85,15 @@ if __name__ == '__main__':
 
     print("Loading models...")
     VAD_MODEL = VAD()
-    STT_MODEL = LocalSpeechToTextModel()
-    TTT_MODEL = LocalTextToTextModel()
-    TTS_MODEL = LocalTextToSpeechModel()
+    
+    print(f"Loading STT model ({STT_MODE})...")
+    STT_MODEL = LocalSpeechToTextModel(STT_MODEL_LOCAL, device=device) if STT_MODE == "local" else RemoteSpeechToTextModel(STT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
+    
+    print(f"Loading TTT model ({TTT_MODE})...")
+    TTT_MODEL = LocalTextToTextModel(TTT_MODEL_LOCAL, device=device) if TTT_MODE == "local" else RemoteTextToTextModel(TTT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
+    
+    print(f"Loading TTS model ({TTS_MODE})...")
+    TTS_MODEL = LocalTextToSpeechModel(TTS_MODEL_LOCAL, device=device) if TTS_MODE == "local" else RemoteTextToSpeechModel(TTS_MODEL_REMOTE, hf_token=HF_API_TOKEN)
     print("Models loaded.")
 
     # 2. Initialize all stream processors

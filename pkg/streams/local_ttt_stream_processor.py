@@ -2,6 +2,9 @@ import queue
 import threading
 import time
 import torch
+from pkg.config import device, HF_API_TOKEN, STT_MODE, STT_MODEL_LOCAL, STT_MODEL_REMOTE, TTT_MODE, TTT_MODEL_REMOTE, TTT_MODEL_LOCAL
+from pkg.model_clients.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
+from pkg.model_clients.tts_model import LocalTextToSpeechModel, RemoteTextToTextModel
 
 class TextToTextStreamProcessor:
     """
@@ -74,8 +77,7 @@ from pkg.streams.local_voice_stream_ingestor import VoiceFrameIngestor
 from pkg.streams.local_stt_stream_processor import SpeechToTextStreamProcessor
 
 if __name__ == '__main__':
-    device = 0 if torch.cuda.is_available() else -1
-    print(f"Using device: {'GPU' if device==0 else 'CPU'}")
+
     # 1. Initialize models and all three queues
     SAMPLE_RATE = 16000
     AUDIO_QUEUE = queue.Queue()
@@ -83,8 +85,14 @@ if __name__ == '__main__':
     BOT_RESPONSE_QUEUE = queue.Queue()
 
     VAD_MODEL = VAD(vad_level=3)
-    STT_MODEL = LocalSpeechToTextModel(device=device)
-    TTT_MODEL = LocalTextToTextModel(model_name="google/flan-t5-large", device=device)
+    
+    print(f"Loading STT model ({STT_MODE})...")
+    STT_MODEL = LocalSpeechToTextModel(STT_MODEL_LOCAL, device=device) if STT_MODE == "local" else RemoteSpeechToTextModel(STT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
+    
+    print(f"Loading TTT model ({TTT_MODE})...")
+    TTT_MODEL = LocalTextToTextModel(TTT_MODEL_LOCAL, device=device) if TTT_MODE == "local" else RemoteTextToTextModel(TTT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
+    
+    
 
     # 2. Initialize the STT Processor
     stt_processor = SpeechToTextStreamProcessor(

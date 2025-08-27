@@ -2,6 +2,7 @@ import queue
 import threading
 import sounddevice as sd
 import time
+import torch
 
 class TextToSpeechStreamProcessor:
     """
@@ -75,6 +76,8 @@ from pkg.streams.local_stt_stream_processor import SpeechToTextStreamProcessor
 from pkg.streams.local_ttt_stream_processor import TextToTextStreamProcessor
 
 if __name__ == '__main__':
+    device = 0 if torch.cuda.is_available() else -1
+    print(f"Using device: {'GPU' if device==0 else 'CPU'}")
     # 1. Initialize all models and queues for the full pipeline
     SAMPLE_RATE = 16000
     AUDIO_QUEUE = queue.Queue()

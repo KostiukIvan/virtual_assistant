@@ -12,7 +12,8 @@ import wave    # <-- Added import
 
 # ===== Base STT =====
 class SpeechToTextModel:
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str, device: int = 0):
+        self.device = device
         self.model_name = model_name
     
     def audio_to_text(self, buffer: np.ndarray, sample_rate: int) -> str:
@@ -21,10 +22,10 @@ class SpeechToTextModel:
 
 # ===== Local HuggingFace STT =====
 class LocalSpeechToTextModel(SpeechToTextModel):
-    def __init__(self, model_name: str = "openai/whisper-small"):
-        super().__init__(model_name)
+    def __init__(self, model_name: str = "openai/whisper-small", device: int = 0):
+        super().__init__(model_name, device)
         # load pipeline once (local execution)
-        self.asr = pipeline("automatic-speech-recognition", model=self.model_name)
+        self.asr = pipeline("automatic-speech-recognition", model=self.model_name, device=self.device)
 
     def audio_to_text(self, buffer: np.ndarray, sample_rate: int = 16000) -> str:
         """

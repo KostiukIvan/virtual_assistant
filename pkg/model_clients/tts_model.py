@@ -5,7 +5,8 @@ import torch
 
 # ===== Base TTS =====
 class TextToSpeechModel:
-    def __init__(self, model_name: str, sample_rate: int):
+    def __init__(self, model_name: str, sample_rate: int, device: int = 0):
+        self.device = device
         self.model_name = model_name
         self.sample_rate = sample_rate
     
@@ -15,17 +16,14 @@ class TextToSpeechModel:
 
 # ===== Local HuggingFace TTS =====
 class LocalTextToSpeechModel(TextToSpeechModel):
-    def __init__(self, model_name: str = "microsoft/speecht5_tts", sample_rate: int = 16000):
+    def __init__(self, model_name: str = "microsoft/speecht5_tts", sample_rate: int = 16000, device: int = 0):
         """
         model_name examples:
         - "microsoft/speecht5_tts" (High quality, uses a separate vocoder)
         - "espnet/kan-bayashi_ljspeech_vits" (CPU-friendly, good English voice)
         """
-        super().__init__(model_name, sample_rate)
+        super().__init__(model_name, sample_rate, device)
         
-        # Determine the device for model inference
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-
         # Load the processor, model, and vocoder
         self.processor = SpeechT5Processor.from_pretrained(model_name)
         self.model = SpeechT5ForTextToSpeech.from_pretrained(model_name).to(self.device)

@@ -9,7 +9,8 @@ from pkg.model_clients.stt_model import LocalSpeechToTextModel
 
 # ===== Base TTT =====
 class TextToTextModel:
-    def __init__(self, model_name: str):
+    def __init__(self, model_name: str, device: int = 0):
+        self.device = device
         self.model_name = model_name
     
     def text_to_text(self, message: str) -> str:
@@ -18,9 +19,9 @@ class TextToTextModel:
 
 # ===== Local HuggingFace TTT =====
 class LocalTextToTextModel(TextToTextModel):
-    def __init__(self, model_name: str = "google/flan-t5-small"):
-        super().__init__(model_name)
-        self.generator = pipeline("text2text-generation", model=self.model_name)
+    def __init__(self, model_name: str = "google/flan-t5-small", device: int = 0):
+        super().__init__(model_name, device)
+        self.generator = pipeline("text2text-generation", model=self.model_name, device=self.device)
 
     def text_to_text(self, message: str) -> str:
         output = self.generator(message, max_length=128, clean_up_tokenization_spaces=True)

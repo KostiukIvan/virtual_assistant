@@ -96,7 +96,7 @@ class VoiceFrameIngestor:
                     frame_bytes, _ = stream.read(frame_samples)
 
                     # Perform VAD
-                    if self.vad.is_speech(frame_bytes):
+                    if self.vad.is_speech(frame_bytes, self.sample_rate):
                         self.is_speaking = True
                         self.silent_frames_count = 0
                         # Put the raw frame into the stream queue for external use

@@ -1,6 +1,7 @@
 import queue
 import threading
 import time
+import torch
 
 class TextToTextStreamProcessor:
     """
@@ -73,6 +74,8 @@ from pkg.streams.local_voice_stream_ingestor import VoiceFrameIngestor
 from pkg.streams.local_stt_stream_processor import SpeechToTextStreamProcessor
 
 if __name__ == '__main__':
+    device = 0 if torch.cuda.is_available() else -1
+    print(f"Using device: {'GPU' if device==0 else 'CPU'}")
     # 1. Initialize models and all three queues
     SAMPLE_RATE = 16000
     AUDIO_QUEUE = queue.Queue()
@@ -80,8 +83,8 @@ if __name__ == '__main__':
     BOT_RESPONSE_QUEUE = queue.Queue()
 
     VAD_MODEL = VAD(vad_level=3)
-    STT_MODEL = LocalSpeechToTextModel()
-    TTT_MODEL = LocalTextToTextModel()
+    STT_MODEL = LocalSpeechToTextModel(device=device)
+    TTT_MODEL = LocalTextToTextModel(model_name="google/flan-t5-large", device=device)
 
     # 2. Initialize the STT Processor
     stt_processor = SpeechToTextStreamProcessor(

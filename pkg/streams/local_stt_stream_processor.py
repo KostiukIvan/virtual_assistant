@@ -2,6 +2,7 @@ import queue
 import threading
 import numpy as np
 import time
+import torch
 from pkg.model_clients.vad_model import VAD
 from pkg.model_clients.stt_model import LocalSpeechToTextModel
 from pkg.streams.local_voice_stream_ingestor import VoiceFrameIngestor
@@ -90,12 +91,15 @@ class SpeechToTextStreamProcessor:
 
 
 if __name__ == '__main__':
+    device = 0 if torch.cuda.is_available() else -1
+    print(f"Using device: {'GPU' if device==0 else 'CPU'}")
+    
     # 1. Initialize the core components and both queues
     SAMPLE_RATE = 16000
     AUDIO_QUEUE = queue.Queue()  # For audio frames from ingestor to processor
     TEXT_QUEUE = queue.Queue()   # For text from processor to main thread
     VAD_MODEL = VAD(vad_level=3)
-    STT_MODEL = LocalSpeechToTextModel()
+    STT_MODEL = LocalSpeechToTextModel(device=device)
 
     # 2. Initialize the updated SpeechToTextStreamProcessor
     processor = SpeechToTextStreamProcessor(

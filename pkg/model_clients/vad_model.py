@@ -16,16 +16,15 @@ class VoiceActiveDetection:
 
 
 class VAD(VoiceActiveDetection):
-    def __init__(self, vad_level: int = 3, sample_rate: int = 16000):
+    def __init__(self, vad_level: int = 3):
         super().__init__()
         self.vad_level = vad_level
-        self.sample_rate = sample_rate
         self.client: webrtcvad.Vad = webrtcvad.Vad(self.vad_level)
 
-    def is_speech(self, frame: bytes) -> bool:
+    def is_speech(self, frame: bytes, sample_rate: int) -> bool:
         try:
             pcm16 = float_to_pcm16(frame)
-            return self.client.is_speech(pcm16, self.sample_rate)
+            return self.client.is_speech(pcm16, sample_rate)
         except Exception as e:
             print("VAD error: ", str(e))
             return False

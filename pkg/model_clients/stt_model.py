@@ -4,14 +4,18 @@ import webrtcvad
 from transformers import pipeline
 from pkg.utils import float_to_pcm16
 from pkg.model_clients.vad_model import VAD
-
+from pkg.config import HF_API_TOKEN
+import requests 
+import os     
+import io      # <-- Added import
+import wave    # <-- Added import
 
 # ===== Base STT =====
 class SpeechToTextModel:
     def __init__(self, model_name: str):
         self.model_name = model_name
     
-    def audio_to_text(self, buffer: np.ndarray) -> str:
+    def audio_to_text(self, buffer: np.ndarray, sample_rate: int) -> str:
         raise NotImplementedError
 
 
@@ -31,6 +35,57 @@ class LocalSpeechToTextModel(SpeechToTextModel):
         return result["text"]
 
 
+# ===== Remote HuggingFace STT (New Class) =====
+class RemoteSpeechToTextModel(SpeechToTextModel):
+    def __init__(self, model_name: str = "openai/whisper-large-v3", hf_token: str = None):
+        super().__init__(model_name)
+        self.hf_token = hf_token or os.getenv("HF_TOKEN")
+        if not self.hf_token:
+            raise ValueError(
+                "Hugging Face API token not found. "
+                "Pass it as an argument or set the HF_TOKEN environment variable."
+            )
+        
+        self.api_url = f"https://api-inference.huggingface.co/models/{self.model_name}"
+        self.headers = {
+            "Authorization": f"Bearer {self.hf_token}",
+            "Content-Type": "audio/wav"
+        }
+
+    def audio_to_text(self, buffer: np.ndarray, sample_rate: int = 16000) -> str:
+        """
+        buffer: numpy array of PCM float32 [-1,1]
+        sample_rate: must match model's expected sample rate
+        """
+        # 1. Convert float audio to 16-bit PCM bytes, as before.
+        pcm_data = float_to_pcm16(buffer)
+
+        # 2. Create a virtual WAV file in memory.
+        with io.BytesIO() as wav_file:
+            with wave.open(wav_file, 'wb') as wf:
+                wf.setnchannels(1)  # Mono
+                wf.setsampwidth(2)  # 16-bit (2 bytes)
+                wf.setframerate(sample_rate)
+                wf.writeframes(pcm_data)
+            wav_data = wav_file.getvalue()
+
+        # 3. Send the complete WAV data (header + PCM).
+        print("...sending audio to HuggingFace API...")
+        response = requests.post(self.api_url, headers=self.headers, data=wav_data)
+        
+        if response.status_code != 200:
+            return f"Error: API returned status {response.status_code} - {response.text}"
+            
+        result = response.json()
+        
+        if "error" in result:
+            if "is currently loading" in result["error"]:
+                estimated_time = result.get("estimated_time", 0)
+                return f"Model is loading, please try again in {estimated_time:.0f} seconds."
+            return f"API Error: {result['error']}"
+            
+        return result.get("text", "No transcription available.")
+
 
 # ===== Main test loop =====
 def main():
@@ -39,7 +94,16 @@ def main():
     frame_samples = int(sample_rate * frame_duration / 1000)
 
     vad = VAD(vad_level=3)
-    stt = LocalSpeechToTextModel("openai/whisper-small")
+
+    # --- CHOOSE YOUR MODEL ---
+    # 1. Local Model (runs on your machine)
+    # stt = LocalSpeechToTextModel("openai/whisper-small")
+    
+    # 2. Remote Model (uses Hugging Face Inference API)
+    # Note: Using a larger model like whisper-1 is recommended for the API.
+    print("HF_API_TOKEN=",HF_API_TOKEN)
+    stt = RemoteSpeechToTextModel("openai/whisper-large-v3", hf_token=HF_API_TOKEN)
+
 
     buffer = []
     recording = False
@@ -49,19 +113,25 @@ def main():
     with sd.InputStream(channels=1, samplerate=sample_rate, dtype="float32") as stream:
         while True:
             audio_float, _ = stream.read(frame_samples)
+            audio_chunk = audio_float.flatten()
 
-            if vad.is_speech(audio_float.flatten(), sample_rate):
-                buffer.extend(audio_float.flatten())
+            if vad.is_speech(audio_chunk, sample_rate):
+                if not recording:
+                    print("...listening...")
+                buffer.extend(audio_chunk)
                 recording = True
-                print("...listening...")
             else:
-                if recording and len(buffer) > 0:
+                if recording and len(buffer) > 5000: # Transcribe if speech is long enough
                     print("🔎 Transcribing...")
                     audio_np = np.array(buffer, dtype=np.float32)
                     text = stt.audio_to_text(audio_np, sample_rate=sample_rate)
                     print("📝 Recognized:", text)
-                    buffer = []
+                    buffer = [] # Clear buffer after transcription
+                
+                # If it was recording but the audio is too short, just reset
+                if recording:
                     recording = False
+                    buffer = []
 
 
 if __name__ == "__main__":

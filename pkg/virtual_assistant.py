@@ -1,75 +1,132 @@
-import asyncio
-from typing import Optional, List
+import queue
+import time
+
+from pkg.model_clients.vad_model import VAD
+from pkg.model_clients.stt_model import LocalSpeechToTextModel
+from pkg.model_clients.ttt_model import LocalTextToTextModel
+from pkg.model_clients.tts_model import LocalTextToSpeechModel
+from pkg.streams.local_voice_stream_ingestor import VoiceFrameIngestor
+from pkg.streams.local_stt_stream_processor import SpeechToTextStreamProcessor
+from pkg.streams.local_ttt_stream_processor import TextToTextStreamProcessor
+from pkg.streams.local_tts_stream_processor import TextToSpeechStreamProcessor
 
 class VirtualAssistant:
     """
-    High-level virtual assistant integrating StreamingSTT, ConversationalAI, and StreamingTTS.
-    Automatically streams audio -> text -> AI -> speech.
+    Orchestrates the entire voice assistant pipeline, from voice ingestion
+    to speech synthesis of the bot's response.
     """
-
-    def __init__(self, stt_class, ai_class, tts_class, stt_config=None, ai_config=None, tts_config=None):
-        # Initialize STT, AI, TTS
-        self.stt = stt_class(**(stt_config or {}))
-        self.ai = ai_class(**(ai_config or {}))
-        self.tts = tts_class(**(tts_config or {}))
-
-        # Background tasks
-        self._stt_task: Optional[asyncio.Task] = None
-        self._ai_task: Optional[asyncio.Task] = None
-        self._running = False
-
-    async def _stt_loop(self):
+    def __init__(self,
+                 vad_model,
+                 stt_model,
+                 ttt_model,
+                 tts_model,
+                 voice_ingestor,
+                 stt_processor,
+                 ttt_processor,
+                 tts_processor):
         """
-        Continuously get partials from STT and forward to AI.
+        Initializes the VirtualAssistant with all necessary components.
         """
-        while self._running:
-            partial = await self.stt.get_partial(timeout=0.1)
-            if partial is not None:
-                await self.ai.enqueue_input(partial)
-            await asyncio.sleep(0)  # yield control
-
-    async def _ai_loop(self):
-        """
-        Continuously get AI responses and feed them to TTS.
-        """
-        while self._running:
-            response = await self.ai.get_response(timeout=0.1)
-            if response is not None:
-                await self.tts.speak(response)
-            await asyncio.sleep(0)  # yield control
+        self.vad_model = vad_model
+        self.stt_model = stt_model
+        self.ttt_model = ttt_model
+        self.tts_model = tts_model
+        self.voice_ingestor = voice_ingestor
+        self.stt_processor = stt_processor
+        self.ttt_processor = ttt_processor
+        self.tts_processor = tts_processor
 
     def start(self):
-        """Start all background tasks."""
-        self._running = True
-        self.ai.start()  # start AI processing
-        self._stt_task = asyncio.create_task(self._stt_loop())
-        self._ai_task = asyncio.create_task(self._ai_loop())
-
-    async def stop(self):
-        """Stop all tasks gracefully."""
-        self._running = False
-        await self.ai.stop()
-        if self._stt_task:
-            await self._stt_task
-        if self._ai_task:
-            await self._ai_task
-
-    async def feed_audio(self, audio_bytes: bytes):
-        """Feed raw audio chunk to STT."""
-        await self.stt.accept_chunk(audio_bytes)
-
-    async def get_audio_chunk(self, timeout: float = 0.1) -> Optional[bytes]:
-        """Get next TTS audio chunk."""
-        return await self.tts.get_audio(timeout)
-
-    async def finalize(self):
         """
-        Finalize STT and AI buffers at end of conversation.
-        Returns (final_text, partial_texts).
+        Starts all the stream processing threads in the correct order
+        to begin the conversation.
         """
-        final_text, parts = await self.stt.finalize()
-        # Push any remaining partials to AI
-        for part in parts:
-            await self.ai.enqueue_input(part)
-        await asyncio.sleep(0.05)  # give AI time to process
-        return final_text, parts
+        print("🚀 Starting Virtual Assistant...")
+        # Start processors that wait for input first
+        self.stt_processor.start()
+        self.ttt_processor.start()
+        self.tts_processor.start()
+        
+        # Start the voice ingestor last, as it begins the data flow
+        self.voice_ingestor.start()
+        
+        print("\n🎤 Assistant is now active. Speak, then pause for a response.")
+
+    def stop(self):
+        """
+        Stops all stream processing threads gracefully.
+        """
+        print("\n🛑 Stopping Virtual Assistant...")
+        self.voice_ingestor.stop()
+        self.stt_processor.stop()
+        self.ttt_processor.stop()
+        self.tts_processor.stop()
+        print("✅ Assistant has been shut down.")
+
+# --- Example Usage ---
+if __name__ == '__main__':
+    # 1. Initialize all models and queues
+    SAMPLE_RATE = 16000
+    AUDIO_QUEUE = queue.Queue()
+    USER_TEXT_QUEUE = queue.Queue()
+    BOT_RESPONSE_QUEUE = queue.Queue()
+
+    print("Loading models...")
+    VAD_MODEL = VAD()
+    STT_MODEL = LocalSpeechToTextModel()
+    TTT_MODEL = LocalTextToTextModel()
+    TTS_MODEL = LocalTextToSpeechModel()
+    print("Models loaded.")
+
+    # 2. Initialize all stream processors
+    stt_processor = SpeechToTextStreamProcessor(
+        stt_model=STT_MODEL,
+        input_stream_queue=AUDIO_QUEUE,
+        output_stream_queue=USER_TEXT_QUEUE
+    )
+
+    ttt_processor = TextToTextStreamProcessor(
+        ttt_model=TTT_MODEL,
+        input_stream_queue=USER_TEXT_QUEUE,
+        output_stream_queue=BOT_RESPONSE_QUEUE
+    )
+
+    tts_processor = TextToSpeechStreamProcessor(
+        tts_model=TTS_MODEL,
+        input_stream_queue=BOT_RESPONSE_QUEUE
+    )
+
+    # 3. Initialize the Voice Ingestor
+    ingestor = VoiceFrameIngestor(
+        vad=VAD_MODEL,
+        stream_queue=AUDIO_QUEUE,
+        pause_callback=stt_processor.process_audio,
+        sample_rate=SAMPLE_RATE,
+        frame_ms=30,
+        pause_threshold_ms=1000
+    )
+
+    # 4. Create the Virtual Assistant instance
+    assistant = VirtualAssistant(
+        vad_model=VAD_MODEL,
+        stt_model=STT_MODEL,
+        ttt_model=TTT_MODEL,
+        tts_model=TTS_MODEL,
+        voice_ingestor=ingestor,
+        stt_processor=stt_processor,
+        ttt_processor=ttt_processor,
+        tts_processor=tts_processor
+    )
+
+    # 5. Start the conversation
+    assistant.start()
+
+    # The main thread waits for a KeyboardInterrupt to stop the assistant
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # 6. Stop the assistant gracefully
+        assistant.stop()

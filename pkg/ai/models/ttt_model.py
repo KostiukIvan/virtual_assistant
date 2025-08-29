@@ -3,8 +3,8 @@ import numpy as np
 import webrtcvad
 from transformers import pipeline
 from pkg.utils import float_to_pcm16
-from pkg.model_clients.vad_model import VAD
-from pkg.model_clients.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
+from pkg.ai.models.aspd_detector import AdvancedSpeechPauseDetector
+from pkg.ai.models.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
 from pkg.config import HF_API_TOKEN, device, TTT_MODE, TTT_MODEL_LOCAL, TTT_MODEL_REMOTE, STT_MODE, STT_MODEL_LOCAL, STT_MODEL_REMOTE
 import requests
 import os
@@ -86,7 +86,13 @@ def main():
     frame_duration = 30  # ms
     frame_samples = int(sample_rate * frame_duration / 1000)
 
-    vad = VAD(vad_level=3)
+    detector = AdvancedSpeechPauseDetector(
+        sample_rate=sample_rate,
+        frame_duration_ms=frame_duration,
+        vad_level=3,
+        short_pause_ms=250,
+        long_pause_ms=1000,
+    )
     
     # Initialize Speech-to-Text model based on config
     if STT_MODE == "local":
@@ -110,7 +116,7 @@ def main():
             audio_float, _ = stream.read(frame_samples)
             audio_chunk = audio_float.flatten()
 
-            if vad.is_speech(audio_chunk, sample_rate):
+            if detector.is_speech(audio_chunk):
                 if not recording:
                     print("...listening...")
                 buffer.extend(audio_chunk)

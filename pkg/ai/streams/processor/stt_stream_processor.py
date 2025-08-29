@@ -4,9 +4,8 @@ import numpy as np
 import time
 import torch
 from pkg.config import device, HF_API_TOKEN, STT_MODE, STT_MODEL_LOCAL, STT_MODEL_REMOTE
-from pkg.model_clients.vad_model import VAD
-from pkg.model_clients.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
-from pkg.streams.local_voice_stream_ingestor import VoiceFrameIngestor
+from pkg.ai.models.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
+from pkg.ai.streams.processor.aspd_stream_processor import AdvancedSpeechPauseDetectorStream
 
 class SpeechToTextStreamProcessor:
     """
@@ -65,6 +64,7 @@ class SpeechToTextStreamProcessor:
             except Exception as e:
                 print(f"An error occurred in the processing loop: {e}")
 
+
     def process_audio(self):
         """
         Processes the currently buffered audio, transcribes it, places the
@@ -94,42 +94,50 @@ class SpeechToTextStreamProcessor:
 if __name__ == '__main__':
     # 1. Initialize the core components and both queues
     SAMPLE_RATE = 16000
-    AUDIO_QUEUE = queue.Queue()  # For audio frames from ingestor to processor
-    TEXT_QUEUE = queue.Queue()   # For text from processor to main thread
-    VAD_MODEL = VAD(vad_level=3)
+    FRAME_DURATION_MS = 30
+    VAD_LEVEL=3
+    SHORT_PAUSE_MS=300
+    LONG_PAUSE_MS=1000
+    STREAM_DETECTOR_INPUT_QUEUE = queue.Queue()  
+    STT_INPUT_QUEUE = queue.Queue() 
+    TTT_INPUT_QUEUE = queue.Queue()
+    
+    
+    stream_detector = AdvancedSpeechPauseDetectorStream(
+        input_queue=STREAM_DETECTOR_INPUT_QUEUE,
+        output_queue=STT_INPUT_QUEUE,
+        long_pause_callback=lambda: print("LONG CALLBACK"),
+        short_pause_callback=lambda: print("SHORT CALLBACK"),
+        sample_rate=SAMPLE_RATE,
+        frame_duration_ms=FRAME_DURATION_MS,
+        vad_level=VAD_LEVEL,
+        short_pause_ms=SHORT_PAUSE_MS,
+        long_pause_ms=LONG_PAUSE_MS
+    )
+    
     print(f"Loading STT model ({STT_MODE})...")
     STT_MODEL = LocalSpeechToTextModel(STT_MODEL_LOCAL, device=device) if STT_MODE == "local" else RemoteSpeechToTextModel(STT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
     
     # 2. Initialize the updated SpeechToTextStreamProcessor
-    processor = SpeechToTextStreamProcessor(
+    stt_processor = SpeechToTextStreamProcessor(
         stt_model=STT_MODEL,
-        input_stream_queue=AUDIO_QUEUE,
-        output_stream_queue=TEXT_QUEUE,
+        input_stream_queue=STT_INPUT_QUEUE,
+        output_stream_queue=TTT_INPUT_QUEUE,
         sample_rate=SAMPLE_RATE
     )
 
-    # 3. Initialize the VoiceFrameIngestor
-    ingestor = VoiceFrameIngestor(
-        vad=VAD_MODEL,
-        stream_queue=AUDIO_QUEUE, # Ingestor outputs to the AUDIO_QUEUE
-        pause_callback=processor.process_audio,
-        sample_rate=SAMPLE_RATE,
-        frame_ms=30,
-        pause_threshold_ms=800
-    )
-
     # 4. Start both components
-    processor.start()
-    ingestor.start()
+    stt_processor.start()
+    stream_detector.start()
 
     print("\n🎤 Microphone is active. Speak and then pause to trigger transcription.")
     print("Press Ctrl+C to stop.")
 
     try:
-        # The main thread now listens for results from the TEXT_QUEUE
+        # The main thread now listens for results from the TTT_INPUT_QUEUE
         while True:
             try:
-                transcribed_text = TEXT_QUEUE.get(timeout=1.0)
+                transcribed_text = TTT_INPUT_QUEUE.get(timeout=1.0)
                 print(f"\n[Final Output] -> {transcribed_text}")
             except queue.Empty:
                 continue
@@ -137,5 +145,5 @@ if __name__ == '__main__':
         print("\nStopping application.")
     finally:
         # 5. Stop the components gracefully
-        ingestor.stop()
-        processor.stop()
+        stream_detector.stop()
+        stt_processor.stop()

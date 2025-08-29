@@ -99,7 +99,8 @@ if __name__ == '__main__':
 
     tts_processor = TextToSpeechStreamProcessor(
         tts_model=TTS_MODEL,
-        input_stream_queue=BOT_RESPONSE_QUEUE
+        input_stream_queue=BOT_RESPONSE_QUEUE,
+        output_stream_queue=None
     )
 
     # 3. Initialize the Voice Ingestor

@@ -2,9 +2,7 @@ import pyaudio
 import numpy as np
 import threading
 import queue
-import time
-import collections
-from pkg.model_clients.vad_model import VAD
+from pkg.ai.streams.aspd_stream_processor import AdvancedSpeechPauseDetectorStream
 import sounddevice as sd
 
 
@@ -16,26 +14,30 @@ class VoiceFrameIngestor:
     def __init__(self,
                  vad: object,
                  stream_queue: queue.Queue,
-                 pause_callback: callable,
+                 long_pause_callback: callable,
+                 short_pause_callback: callable,
                  frame_ms: int = 30,
                  overlap_ms: int = 10,
                  pause_threshold_ms: int = 300,
-                 sample_rate: int = 16000):
+                 sample_rate: int = 16000,
+                 spd: SpeechPauseDetector = None):
         """
         Initializes the VoiceFrameIngestor.
 
         Args:
             vad (object): An object with an `is_speech(frame)` method.
             stream_queue (queue.Queue): Queue to put the audio frames into.
-            pause_callback (callable): Function to call when speech pauses.
+            long_pause_callback (callable): Function to call when speech pauses.
             frame_ms (int): The duration of each audio frame in milliseconds.
             overlap_ms (int): The overlap between consecutive frames in milliseconds.
             pause_threshold_ms (int): Milliseconds of silence to trigger the pause callback.
             rate (int): The sample rate of the audio.
         """
         self.vad = vad
+        self.spd = spd
         self.stream_queue = stream_queue
-        self.pause_callback = pause_callback
+        self.long_pause_callback = long_pause_callback
+        self.short_pause_callback = short_pause_callback
         self.sample_rate = sample_rate
         self.frame_duration_ms = frame_ms
         self.overlap_duration_ms = overlap_ms
@@ -103,10 +105,14 @@ class VoiceFrameIngestor:
                         self.stream_queue.put(frame_bytes)
                     else:
                         if self.is_speaking:
+                            if self.spd.process_chunk(audio_chunk=frame_bytes) == "INHALATION_PAUSE":
+                                print("INHALATION_PAUSE")
+                                self.short_pause_callback()
+                            
                             self.silent_frames_count += 1
                             if self.silent_frames_count >= self.pause_threshold_frames:
                                 print("\n--- Pause detected! ---")
-                                self.pause_callback()
+                                self.long_pause_callback()
                                 self.is_speaking = False # Reset state after callback
                                 self.silent_frames_count = 0
 
@@ -130,7 +136,7 @@ if __name__ == '__main__':
     ingestor = VoiceFrameIngestor(
         vad=vad,
         stream_queue=output_queue,
-        pause_callback=on_speech_paused,
+        long_pause_callback=on_speech_paused,
         frame_ms=30,
         overlap_ms=10,
         pause_threshold_ms=500 # Consider it a pause after 500ms of silence

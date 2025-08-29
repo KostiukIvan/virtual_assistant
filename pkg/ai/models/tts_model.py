@@ -1,7 +1,6 @@
 import sounddevice as sd
 import numpy as np
-import webrtcvad
-from transformers import pipeline, SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan
+from transformers import SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan
 import torch
 from pkg.config import (HF_API_TOKEN, device, TTT_MODE, TTT_MODEL_LOCAL, TTT_MODEL_REMOTE, 
                         STT_MODE, STT_MODEL_LOCAL, STT_MODEL_REMOTE, TTS_MODE, 
@@ -10,14 +9,14 @@ from pkg.config import (HF_API_TOKEN, device, TTT_MODE, TTT_MODEL_LOCAL, TTT_MOD
 import requests
 import os
 import io
-from huggingface_hub import hf_hub_download
 # New import for remote TTS audio processing
 from scipy.io import wavfile
 
 # Assume these classes are defined in their respective files as before
-from pkg.model_clients.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
-from pkg.model_clients.ttt_model import LocalTextToTextModel, RemoteTextToTextModel
-from pkg.model_clients.vad_model import VAD
+from pkg.ai.models.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
+from pkg.ai.models.ttt_model import LocalTextToTextModel, RemoteTextToTextModel
+
+from pkg.ai.models.aspd_detector import AdvancedSpeechPauseDetector
 
 # ===== Base TTS =====
 class TextToSpeechModel:
@@ -100,8 +99,13 @@ def main():
     frame_duration = 30
     frame_samples = int(sample_rate * frame_duration / 1000)
 
-    # --- Initialize Models Based on Config ---
-    vad = VAD(vad_level=3)
+    detector = AdvancedSpeechPauseDetector(
+        sample_rate=sample_rate,
+        frame_duration_ms=frame_duration,
+        vad_level=3,
+        short_pause_ms=250,
+        long_pause_ms=1000,
+    )
     
     print(f"Loading STT model ({STT_MODE})...")
     stt = LocalSpeechToTextModel(STT_MODEL_LOCAL, device=device) if STT_MODE == "local" else RemoteSpeechToTextModel(STT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
@@ -119,7 +123,7 @@ def main():
     with sd.InputStream(channels=1, samplerate=sample_rate, dtype="float32") as stream:
         while True:
             audio_chunk, _ = stream.read(frame_samples)
-            if vad.is_speech(audio_chunk.flatten(), sample_rate):
+            if detector.is_speech(audio_chunk.flatten()):
                 if not recording: print("...listening...")
                 buffer.extend(audio_chunk.flatten())
                 recording = True

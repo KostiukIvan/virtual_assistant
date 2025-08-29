@@ -5,6 +5,7 @@ import torch
 from pkg.config import device, HF_API_TOKEN, STT_MODE, STT_MODEL_LOCAL, STT_MODEL_REMOTE, TTT_MODE, TTT_MODEL_REMOTE, TTT_MODEL_LOCAL
 from pkg.model_clients.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
 from pkg.model_clients.tts_model import LocalTextToSpeechModel, RemoteTextToTextModel
+from pkg.model_clients.spd_model import SpeechPauseDetector
 
 class TextToTextStreamProcessor:
     """
@@ -28,23 +29,25 @@ class TextToTextStreamProcessor:
         self.thread = None
 
     def start(self):
-        """Starts the processor in a separate thread."""
-        if self.is_running:
-            print("TTT Processor is already running.")
-            return
+        # """Starts the processor in a separate thread."""
+        # if self.is_running:
+        #     print("TTT Processor is already running.")
+        #     return
         
-        print("Starting TTT Stream Processor...")
-        self.is_running = True
-        self.thread = threading.Thread(target=self._processing_loop, daemon=True)
-        self.thread.start()
+        # print("Starting TTT Stream Processor...")
+        # self.is_running = True
+        # self.thread = threading.Thread(target=self._processing_loop, daemon=True)
+        # self.thread.start()
+        pass
 
     def stop(self):
-        """Stops the processor thread."""
-        print("Stopping TTT Stream Processor...")
-        self.is_running = False
-        if self.thread:
-            self.thread.join()
-        print("TTT Processor stopped.")
+        # """Stops the processor thread."""
+        # print("Stopping TTT Stream Processor...")
+        # self.is_running = False
+        # if self.thread:
+        #     self.thread.join()
+        # print("TTT Processor stopped.")
+        pass
 
     def _processing_loop(self):
         """The main loop for consuming text and generating responses."""
@@ -66,6 +69,28 @@ class TextToTextStreamProcessor:
                 continue
             except Exception as e:
                 print(f"An error occurred in the TTT processing loop: {e}")
+    
+    def process_text(self):
+        input_message = ""
+        while True:
+            try:
+                # Get transcribed text from the input queue
+                user_text = self.input_stream_queue.get(timeout=1.0)
+                input_message += user_text
+             
+            except queue.Empty:
+                break
+            except Exception as e:
+                print(f"An error occurred in the TTT processing loop: {e}")
+        
+        print(f"\n🗣 You said: {input_message}")
+        print("🧠 Thinking...")
+
+        # Generate a response using the TTT model
+        bot_response = self.ttt_model.text_to_text(input_message)
+
+        # Put the final response into the output queue
+        self.output_stream_queue.put(bot_response)
 
 
 
@@ -80,11 +105,18 @@ if __name__ == '__main__':
 
     # 1. Initialize models and all three queues
     SAMPLE_RATE = 16000
+    FRAME_DURATION_MS = 30
     AUDIO_QUEUE = queue.Queue()
     USER_TEXT_QUEUE = queue.Queue()
     BOT_RESPONSE_QUEUE = queue.Queue()
 
     VAD_MODEL = VAD(vad_level=3)
+    SPD_MODEL = SpeechPauseDetector(sample_rate=SAMPLE_RATE,
+                                frame_duration_ms=FRAME_DURATION_MS,
+                                silence_threshold_db=-40,
+                                inhale_duration_ms=200,
+                                sentence_end_duration_ms=450,
+                                history_frames=5)
     
     print(f"Loading STT model ({STT_MODE})...")
     STT_MODEL = LocalSpeechToTextModel(STT_MODEL_LOCAL, device=device) if STT_MODE == "local" else RemoteSpeechToTextModel(STT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
@@ -99,7 +131,7 @@ if __name__ == '__main__':
         stt_model=STT_MODEL,
         input_stream_queue=AUDIO_QUEUE,
         output_stream_queue=USER_TEXT_QUEUE, # Outputs to the user text queue
-        sample_rate=SAMPLE_RATE
+        sample_rate=SAMPLE_RATE,
     )
 
     # 3. Initialize the new TTT Processor
@@ -112,11 +144,13 @@ if __name__ == '__main__':
     # 4. Initialize the Voice Ingestor
     ingestor = VoiceFrameIngestor(
         vad=VAD_MODEL,
-        stream_queue=AUDIO_QUEUE,
-        pause_callback=stt_processor.process_audio, # STT processor is the callback
+        stream_queue=AUDIO_QUEUE, # Ingestor outputs to the AUDIO_QUEUE
+        long_pause_callback=lambda: (stt_processor.process_audio(), ttt_processor.process_text()),
+        short_pause_callback= stt_processor.process_audio,
         sample_rate=SAMPLE_RATE,
-        frame_ms=30,
-        pause_threshold_ms=1000 # 1 second pause
+        frame_ms=FRAME_DURATION_MS,
+        pause_threshold_ms=1000,
+        spd=SPD_MODEL
     )
 
     # 5. Start all threaded components

@@ -51,26 +51,20 @@ class LocalAudioStream:
             print(f"Stream status: {status}", flush=True)
         self.output_queue.put(indata.copy())
 
-    def _stream_thread_loop(self):
-        """
-        The main loop for the audio stream, run in a separate thread.
-        It uses a sounddevice InputStream with a callback to continuously
-        capture audio.
-        """
-        try:
-            with sd.InputStream(
-                samplerate=self.sample_rate,
-                blocksize=self.frame_samples,
-                channels=self.channels,
-                dtype=self.dtype,
-                callback=self._audio_callback
-            ):
-                # The stream is active in this context. We just need to keep the
-                # thread alive while is_running is True.
-                while self.is_running:
-                    time.sleep(0.1)
-        except Exception as e:
-            print(f"An error occurred in the audio stream: {e}")
+    def _ingestion_loop(self):
+        """The main loop for capturing and processing audio."""
+        frame_samples = int(self.sample_rate * self.frame_duration_ms / 1000)
+        with sd.InputStream(channels=self.channels, samplerate=self.sample_rate, dtype="float32") as stream:
+            while self.is_running:
+                try:
+                    # Read a chunk of audio data equal to the frame step size
+                    frame_bytes, _ = stream.read(frame_samples)
+                    self.output_queue.put(frame_bytes)
+                 
+                except Exception as e:
+                    print(f"An error occurred in the ingestion loop: {e}")
+                    break
+
 
     def start(self):
         """Starts the audio ingestion in a separate thread."""
@@ -80,7 +74,7 @@ class LocalAudioStream:
 
         print("Starting local audio stream...")
         self.is_running = True
-        self.thread = threading.Thread(target=self._stream_thread_loop, daemon=True)
+        self.thread = threading.Thread(target=self._ingestion_loop, daemon=True)
         self.thread.start()
 
     def stop(self):

@@ -58,7 +58,7 @@ class LocalAudioProducer:
                 self.stream.stop()
                 self.stream.close()
 
-    def start_audio_production(self):
+    def start(self):
         """Starts the audio production in a separate thread."""
         if self.is_running:
             print("Audio producer is already running.")
@@ -68,7 +68,7 @@ class LocalAudioProducer:
         self.thread = threading.Thread(target=self._production_loop, daemon=True)
         self.thread.start()
 
-    def stop_audio_production(self):
+    def stop(self):
         """Stops the audio production thread."""
         if not self.is_running:
             return

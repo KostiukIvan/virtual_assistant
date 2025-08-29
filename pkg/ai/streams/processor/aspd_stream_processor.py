@@ -48,6 +48,7 @@ class AdvancedSpeechPauseDetectorStream:
 
         self.is_running = False
         self.thread = None
+        self.current_buffer = []
         
     def _processing_loop(self):
         """The main loop for processing audio from the input queue."""
@@ -59,13 +60,25 @@ class AdvancedSpeechPauseDetectorStream:
                 # Process the chunk to detect pauses
                 status = self.detector.process_chunk(audio_chunk)
                 
+                if status == "SPEECH":
+                    print(".", end="")
+                    self.current_buffer.extend(audio_chunk.flatten())
+                
+                # In the _processing_loop method
                 if status == "SHORT_PAUSE": 
+                    if self.current_buffer: # Add this check
+                        audio_np = np.array(self.current_buffer, dtype=np.float32)
+                        self.output_queue.put(audio_np)
+                        self.current_buffer = []
                     self.short_pause_callback()
-                    
+
                 if status == "LONG_PAUSE":
+                    if self.current_buffer: # And also here
+                        audio_np = np.array(self.current_buffer, dtype=np.float32)
+                        self.output_queue.put(audio_np)
+                        self.current_buffer = []
                     self.long_pause_callback()
 
-                self.output_queue.put(audio_chunk)
 
             except queue.Empty:
                 # If the input queue is empty, just continue waiting

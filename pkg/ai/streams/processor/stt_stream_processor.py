@@ -6,11 +6,12 @@ import torch
 from pkg.config import device, HF_API_TOKEN, STT_MODE, STT_MODEL_LOCAL, STT_MODEL_REMOTE
 from pkg.ai.models.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
 from pkg.ai.streams.processor.aspd_stream_processor import AdvancedSpeechPauseDetectorStream
+from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
 
 class SpeechToTextStreamProcessor:
     """
-    Processes a stream of audio frames for speech-to-text transcription.
-    It consumes audio frames from an input queue and places transcribed text
+    Processes chunks of audio for speech-to-text transcription.
+    It consumes audio chunks from an input queue and places transcribed text
     into an output queue.
     """
     def __init__(self, stt_model: object, input_stream_queue: queue.Queue, output_stream_queue: queue.Queue, sample_rate: int = 16000):
@@ -19,7 +20,7 @@ class SpeechToTextStreamProcessor:
 
         Args:
             stt_model (object): An object with an `audio_to_text(buffer, sample_rate)` method.
-            input_stream_queue (queue.Queue): The queue to get audio frames from.
+            input_stream_queue (queue.Queue): The queue to get audio chunks from.
             output_stream_queue (queue.Queue): The queue to put transcribed text into.
             sample_rate (int): The sample rate of the audio.
         """
@@ -28,7 +29,6 @@ class SpeechToTextStreamProcessor:
         self.output_stream_queue = output_stream_queue
         self.sample_rate = sample_rate
         
-        self.audio_buffer = []
         self.is_running = False
         self.thread = None
 
@@ -52,43 +52,37 @@ class SpeechToTextStreamProcessor:
         print("Processor stopped.")
 
     def _processing_loop(self):
-        """The main loop for consuming and buffering audio frames."""
+        """
+        The main loop for consuming audio chunks, transcribing them,
+        and putting the result in the output queue.
+        """
         while self.is_running:
             try:
-                # Get a frame from the input queue
-                frame = self.input_stream_queue.get(timeout=1.0)
-                self.audio_buffer.append(frame)
-                print(".", end="", flush=True) # Visual feedback
+                # Get a complete audio chunk from the input queue.
+                # The upstream processor (AdvancedSpeechPauseDetectorStream) is
+                # responsible for sending a complete utterance here.
+                audio_chunk = self.input_stream_queue.get(timeout=1.0)
+
+                if audio_chunk is None:
+                    continue
+
+                print("\n🔎 Transcribing...")
+                audio_chunk = audio_chunk.flatten()
+                # Perform speech-to-text on the received chunk
+                text = self.stt_model.audio_to_text(audio_chunk, sample_rate=self.sample_rate)
+                if text:
+                    # Place the final text into the output queue
+                    print(f"📝 Recognized: {text}")
+                    self.output_stream_queue.put(text)
+                else:
+                    # Optional: handle cases where the model returns no text
+                    print("🎤 No speech recognized in the last segment.")
+
             except queue.Empty:
+                # This is expected when there's no speech.
                 continue
             except Exception as e:
-                print(f"An error occurred in the processing loop: {e}")
-
-
-    def process_audio(self):
-        """
-        Processes the currently buffered audio, transcribes it, places the
-        result in the output queue, and clears the buffer.
-        """
-        if not self.audio_buffer:
-            return
-
-        print("\n🔎 Transcribing...")
-        
-        # Safely copy the buffer and clear the original for the next utterance
-        current_buffer = self.audio_buffer
-        self.audio_buffer = []
-
-        # Concatenate all frames into a single audio clip
-        audio_clip = np.concatenate([frame.flatten() for frame in current_buffer])
-        
-        # Perform speech-to-text
-        text = self.stt_model.audio_to_text(audio_clip, sample_rate=self.sample_rate)
-        
-        if text:
-            # Place the final text into the output queue
-            print(f"📝 Recognized: {text}")
-            self.output_stream_queue.put(text)
+                print(f"An error occurred in the STT processing loop: {e}")
 
 
 if __name__ == '__main__':
@@ -102,6 +96,10 @@ if __name__ == '__main__':
     STT_INPUT_QUEUE = queue.Queue() 
     TTT_INPUT_QUEUE = queue.Queue()
     
+    audio_stream = LocalAudioStream(output_queue=STREAM_DETECTOR_INPUT_QUEUE)
+
+    # 3. Start capturing audio
+    audio_stream.start()
     
     stream_detector = AdvancedSpeechPauseDetectorStream(
         input_queue=STREAM_DETECTOR_INPUT_QUEUE,
@@ -147,3 +145,4 @@ if __name__ == '__main__':
         # 5. Stop the components gracefully
         stream_detector.stop()
         stt_processor.stop()
+        audio_stream.stop()

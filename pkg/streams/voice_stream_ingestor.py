@@ -12,15 +12,10 @@ class VoiceFrameIngestor:
     and calls a callback when a speech pause is detected.
     """
     def __init__(self,
-                 vad: object,
                  stream_queue: queue.Queue,
-                 long_pause_callback: callable,
-                 short_pause_callback: callable,
                  frame_ms: int = 30,
                  overlap_ms: int = 10,
-                 pause_threshold_ms: int = 300,
-                 sample_rate: int = 16000,
-                 spd: SpeechPauseDetector = None):
+                 sample_rate: int = 16000,):
         """
         Initializes the VoiceFrameIngestor.
 
@@ -33,11 +28,7 @@ class VoiceFrameIngestor:
             pause_threshold_ms (int): Milliseconds of silence to trigger the pause callback.
             rate (int): The sample rate of the audio.
         """
-        self.vad = vad
-        self.spd = spd
         self.stream_queue = stream_queue
-        self.long_pause_callback = long_pause_callback
-        self.short_pause_callback = short_pause_callback
         self.sample_rate = sample_rate
         self.frame_duration_ms = frame_ms
         self.overlap_duration_ms = overlap_ms
@@ -51,10 +42,6 @@ class VoiceFrameIngestor:
         self.thread = None
 
         # State management for pause detection
-        self.is_speaking = False
-        self.pause_threshold_frames = pause_threshold_ms // (frame_ms - overlap_ms)
-        self.silent_frames_count = 0
-
         self.p = pyaudio.PyAudio()
 
         print("[AudioProcessor Config]")
@@ -64,8 +51,6 @@ class VoiceFrameIngestor:
         print(f"  frame_size (samples): {self.frame_size}")
         print(f"  overlap_size (samples): {self.overlap_size}")
         print(f"  step_size (samples): {self.step_size}")
-        print(f"  pause_threshold_ms: {pause_threshold_ms}")
-        print(f"  pause_threshold_frames: {self.pause_threshold_frames}")
         print()
 
     def start(self):
@@ -96,26 +81,8 @@ class VoiceFrameIngestor:
                 try:
                     # Read a chunk of audio data equal to the frame step size
                     frame_bytes, _ = stream.read(frame_samples)
-
-                    # Perform VAD
-                    if self.vad.is_speech(frame_bytes, self.sample_rate):
-                        self.is_speaking = True
-                        self.silent_frames_count = 0
-                        # Put the raw frame into the stream queue for external use
-                        self.stream_queue.put(frame_bytes)
-                    else:
-                        if self.is_speaking:
-                            if self.spd.process_chunk(audio_chunk=frame_bytes) == "INHALATION_PAUSE":
-                                print("INHALATION_PAUSE")
-                                self.short_pause_callback()
-                            
-                            self.silent_frames_count += 1
-                            if self.silent_frames_count >= self.pause_threshold_frames:
-                                print("\n--- Pause detected! ---")
-                                self.long_pause_callback()
-                                self.is_speaking = False # Reset state after callback
-                                self.silent_frames_count = 0
-
+                    self.stream_queue.put(frame_bytes)
+                 
                 except Exception as e:
                     print(f"An error occurred in the ingestion loop: {e}")
                     break

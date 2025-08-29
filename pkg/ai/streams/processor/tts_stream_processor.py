@@ -4,7 +4,7 @@ import sounddevice as sd
 import time
 import torch
 from pkg.config import device, HF_API_TOKEN, STT_MODE, STT_MODEL_LOCAL, STT_MODEL_REMOTE, TTT_MODE, TTT_MODEL_REMOTE, TTT_MODEL_LOCAL, TTS_MODE, TTS_MODEL_LOCAL, TTS_MODEL_REMOTE
-from pkg.model_clients.spd_model import SpeechPauseDetector
+
 
 class TextToSpeechStreamProcessor:
     """
@@ -55,17 +55,20 @@ class TextToSpeechStreamProcessor:
                 # Get the bot's response text from the input queue
                 bot_response = self.input_stream_queue.get(timeout=1.0)
                 
+                if not bot_response:  # Handle empty responses
+                    continue
+                    
                 print(f"🤖 Bot: {bot_response}")
                 print("🔊 Generating speech...")
 
                 # Generate the audio from the text
                 audio_output = self.tts_model.text_to_speech(bot_response)
                 
-                # self.output_stream_queue.put(audio_output)
+                self.output_stream_queue.put(audio_output)
                 
-                # Play the generated audio
-                sd.play(audio_output, samplerate=self.tts_model.sample_rate)
-                sd.wait() # Wait for the audio to finish playing
+                # # 2. Play the new audio. This call is non-blocking.
+                # sd.play(audio_output, samplerate=self.tts_model.sample_rate)
+                # sd.wait() # Wait for the audio to finish playing
 
             except queue.Empty:
                 continue
@@ -73,31 +76,45 @@ class TextToSpeechStreamProcessor:
                 print(f"An error occurred in the TTS processing loop: {e}")
 
 # Assume your other classes are imported
-from pkg.model_clients.vad_model import VAD
-from pkg.model_clients.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
-from pkg.model_clients.ttt_model import LocalTextToTextModel, RemoteTextToTextModel
-from pkg.model_clients.tts_model import LocalTextToSpeechModel, RemoteTextToSpeechModel
-from pkg.streams.local_voice_stream_ingestor import VoiceFrameIngestor
-from pkg.streams.local_stt_stream_processor import SpeechToTextStreamProcessor
-from pkg.streams.local_ttt_stream_processor import TextToTextStreamProcessor
+from pkg.ai.models.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
+from pkg.ai.models.ttt_model import LocalTextToTextModel, RemoteTextToTextModel
+from pkg.ai.models.tts_model import LocalTextToSpeechModel, RemoteTextToSpeechModel
+from pkg.ai.streams.processor.stt_stream_processor import SpeechToTextStreamProcessor
+from pkg.ai.streams.processor.ttt_stream_processor import TextToTextStreamProcessor
+from pkg.ai.streams.processor.aspd_stream_processor import AdvancedSpeechPauseDetectorStream
+from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
+from pkg.ai.streams.output.local.audio_producer import LocalAudioProducer
 
 if __name__ == '__main__':
-    # 1. Initialize all models and queues for the full pipeline
+    # 1. Initialize the core components and both queues
     SAMPLE_RATE = 16000
     FRAME_DURATION_MS = 30
-    AUDIO_QUEUE = queue.Queue()
-    USER_TEXT_QUEUE = queue.Queue()
-    BOT_RESPONSE_QUEUE = queue.Queue()
-
-    print("Loading models...")
-    VAD_MODEL = VAD()
+    VAD_LEVEL=3
+    SHORT_PAUSE_MS=300
+    LONG_PAUSE_MS=1000
+    STREAM_DETECTOR_INPUT_QUEUE = queue.Queue()  
+    STT_INPUT_QUEUE = queue.Queue() 
+    TTT_INPUT_QUEUE = queue.Queue()
+    TTS_INPUT_QUEUE = queue.Queue()
+    AUDIO_PRODUCER_INPUT_QUEUE = queue.Queue()
     
-    SPD_MODEL = SpeechPauseDetector(sample_rate=SAMPLE_RATE,
-                            frame_duration_ms=FRAME_DURATION_MS,
-                            silence_threshold_db=-40,
-                            inhale_duration_ms=200,
-                            sentence_end_duration_ms=450,
-                            history_frames=5)
+    
+    audio_stream = LocalAudioStream(output_queue=STREAM_DETECTOR_INPUT_QUEUE)
+
+    # 3. Start capturing audio
+
+    stream_detector = AdvancedSpeechPauseDetectorStream(
+        input_queue=STREAM_DETECTOR_INPUT_QUEUE,
+        output_queue=STT_INPUT_QUEUE,
+        long_pause_callback=lambda: print("LONG CALLBACK"),
+        short_pause_callback=lambda: print("SHORT CALLBACK"),
+        sample_rate=SAMPLE_RATE,
+        frame_duration_ms=FRAME_DURATION_MS,
+        vad_level=VAD_LEVEL,
+        short_pause_ms=SHORT_PAUSE_MS,
+        long_pause_ms=LONG_PAUSE_MS
+    )
+    
     
     print(f"Loading STT model ({STT_MODE})...")
     STT_MODEL = LocalSpeechToTextModel(STT_MODEL_LOCAL, device=device) if STT_MODE == "local" else RemoteSpeechToTextModel(STT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
@@ -112,41 +129,36 @@ if __name__ == '__main__':
     # 2. Initialize the STT Processor
     stt_processor = SpeechToTextStreamProcessor(
         stt_model=STT_MODEL,
-        input_stream_queue=AUDIO_QUEUE,
-        output_stream_queue=USER_TEXT_QUEUE, # Outputs to the user text queue
-        sample_rate=SAMPLE_RATE,
+        input_stream_queue=STT_INPUT_QUEUE,
+        output_stream_queue=TTT_INPUT_QUEUE,
+        sample_rate=SAMPLE_RATE
     )
 
     # 3. Initialize the new TTT Processor
     ttt_processor = TextToTextStreamProcessor(
         ttt_model=TTT_MODEL,
-        input_stream_queue=USER_TEXT_QUEUE, # Takes input from the user text queue
-        output_stream_queue=BOT_RESPONSE_QUEUE # Outputs to the final response queue
+        input_stream_queue=TTT_INPUT_QUEUE, # Takes input from the user text queue
+        output_stream_queue=TTS_INPUT_QUEUE # Outputs to the final response queue
     )
 
     tts_processor = TextToSpeechStreamProcessor(
         tts_model=TTS_MODEL,
-        input_stream_queue=BOT_RESPONSE_QUEUE,
-        output_stream_queue=None,
+        input_stream_queue=TTS_INPUT_QUEUE,
+        output_stream_queue=AUDIO_PRODUCER_INPUT_QUEUE,
     )
 
-    # 4. Initialize the Voice Ingestor
-    ingestor = VoiceFrameIngestor(
-        vad=VAD_MODEL,
-        stream_queue=AUDIO_QUEUE, # Ingestor outputs to the AUDIO_QUEUE
-        long_pause_callback=lambda: (stt_processor.process_audio(), ttt_processor.process_text()),
-        short_pause_callback= stt_processor.process_audio,
-        sample_rate=SAMPLE_RATE,
-        frame_ms=FRAME_DURATION_MS,
-        pause_threshold_ms=1000,
-        spd=SPD_MODEL
+    audio_producer = LocalAudioProducer(
+        input_queue=AUDIO_PRODUCER_INPUT_QUEUE,
+        speak_callback=lambda is_speaking: print(f"[Playback Status: {'SPEAKING' if is_speaking else 'IDLE'}]")
     )
 
     # 4. Start all threaded components in order
+    audio_stream.start()
+    stream_detector.start()
     stt_processor.start()
     ttt_processor.start()
     tts_processor.start()
-    ingestor.start()
+    audio_producer.start()
 
     print("\n🎤 Voice Assistant is active. Speak, then pause for the bot to respond.")
     print("Press Ctrl+C to stop.")
@@ -159,8 +171,10 @@ if __name__ == '__main__':
         print("\nStopping application...")
     finally:
         # 5. Stop all components gracefully
-        ingestor.stop()
+        audio_stream.stop()
+        stream_detector.stop()
         stt_processor.stop()
         ttt_processor.stop()
         tts_processor.stop()
+        audio_producer.stop()
         print("Application stopped.")

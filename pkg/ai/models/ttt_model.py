@@ -59,10 +59,7 @@ class RemoteTextToTextModel(TextToTextModel):
         super().__init__(model)
         self.hf_token = hf_token or os.getenv("HF_TOKEN")
         if not self.hf_token:
-            msg = (
-                "Hugging Face API token not found. "
-                "Import it from config or set the HF_TOKEN environment variable."
-            )
+            msg = "Hugging Face API token not found. " "Import it from config or set the HF_TOKEN environment variable."
             raise ValueError(
                 msg,
             )
@@ -86,9 +83,7 @@ class RemoteTextToTextModel(TextToTextModel):
         response = requests.post(self.api_url, headers=self.headers, json=payload)
 
         if response.status_code != 200:
-            return (
-                f"Error: API returned status {response.status_code} - {response.text}"
-            )
+            return f"Error: API returned status {response.status_code} - {response.text}"
 
         result = response.json()
 

@@ -28,19 +28,25 @@ dev = [
 # -------------------------------
 
 [tool.black]
-line-length = 88
+line-length = 120
 target-version = ["py310", "py311", "py312"]
 
 [tool.ruff]
-line-length = 88
+line-length = 120
 target-version = "py310"
 fix = true
 unsafe-fixes = true
-select = ["ALL"]
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes
+  "I",   # import sorting
+  "B",   # bugbear (common bugs)
+  "UP",  # pyupgrade
+]
 ignore = [
-    "ANN101",  # Missing type annotation for self
-    "D100",    # Missing docstring in public module
-    "D104",    # Missing docstring in public package
+  "T201",   # allow print()
+  "D401",   # allow "Converts ..." docstrings
+  "ARG005", # ignore unused lambda args (if you need them in callbacks)
 ]
 exclude = ["migrations", ".venv"]
 
@@ -57,12 +63,12 @@ pretty = true
 [tool.bandit]
 exclude = ["tests", "migrations"]
 
-[tool.docformatter]
-wrap-summaries = 88
-wrap-descriptions = 88
-pre-summary-newline = true
-make-summary-multi-line = true
-recursive = true
+# [tool.docformatter]
+# wrap-summaries = 120
+# wrap-descriptions = 120
+# pre-summary-newline = true
+# make-summary-multi-line = true
+# recursive = true
 
 [tool.pytest.ini_options]
 addopts = "-ra -q --cov=."

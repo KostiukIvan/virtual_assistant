@@ -111,9 +111,7 @@ class RemoteTextToSpeechModel(TextToSpeechModel):
 
         # Use scipy to read the in-memory WAV file and get the sample rate and data
         rate, data = wavfile.read(io.BytesIO(audio_bytes))
-        self.sample_rate = (
-            rate  # Update sample rate to the actual rate from the audio file
-        )
+        self.sample_rate = rate  # Update sample rate to the actual rate from the audio file
 
         # Convert audio data from integer to float format for playback
         if data.dtype == np.int16:

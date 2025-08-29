@@ -52,8 +52,7 @@ class RemoteSpeechToTextModel(SpeechToTextModel):
         self.hf_token = hf_token or os.getenv("HF_TOKEN")
         if not self.hf_token:
             msg = (
-                "Hugging Face API token not found. "
-                "Pass it as an argument or set the HF_TOKEN environment variable."
+                "Hugging Face API token not found. " "Pass it as an argument or set the HF_TOKEN environment variable."
             )
             raise ValueError(
                 msg,
@@ -85,9 +84,7 @@ class RemoteSpeechToTextModel(SpeechToTextModel):
         response = requests.post(self.api_url, headers=self.headers, data=wav_data)
 
         if response.status_code != 200:
-            return (
-                f"Error: API returned status {response.status_code} - {response.text}"
-            )
+            return f"Error: API returned status {response.status_code} - {response.text}"
 
         result = response.json()
 
@@ -133,9 +130,7 @@ def main() -> None:
                 buffer.extend(audio_chunk)
                 recording = True
             else:
-                if (
-                    recording and len(buffer) > 5000
-                ):  # Transcribe if speech is long enough
+                if recording and len(buffer) > 5000:  # Transcribe if speech is long enough
                     audio_np = np.array(buffer, dtype=np.float32)
                     stt.audio_to_text(audio_np, sample_rate=sample_rate)
                     buffer = []  # Clear buffer after transcription

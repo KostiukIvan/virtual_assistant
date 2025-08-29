@@ -7,6 +7,7 @@ from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
 from pkg.ai.streams.processor.aspd_stream_processor import (
     AdvancedSpeechPauseDetectorStream,
 )
+from pkg.ai.streams.processor.stt_stream_processor import SpeechToTextStreamProcessor
 from pkg.config import (
     HF_API_TOKEN,
     STT_MODE,
@@ -97,8 +98,6 @@ class TextToTextStreamProcessor:
         # Put the final response into the output queue
         self.output_stream_queue.put(bot_response)
 
-
-from pkg.ai.streams.processor.stt_stream_processor import SpeechToTextStreamProcessor
 
 if __name__ == "__main__":
     # 1. Initialize the core components and both queues

@@ -46,11 +46,11 @@ if [ -f "requirements.txt" ]; then
   safety check -r requirements.txt || true
 fi
 
-# Step 6: Auto-format docstrings with Docformatter (optional)
-if command -v docformatter &> /dev/null; then
-  echo -e "\n📝 Formatting docstrings with Docformatter..."
-  docformatter -i -r "$TARGET_DIR"
-fi
+# # Step 6: Auto-format docstrings with Docformatter (optional)
+# if command -v docformatter &> /dev/null; then
+#   echo -e "\n📝 Formatting docstrings with Docformatter..."
+#   docformatter -i -r "$TARGET_DIR"
+# fi
 
 # Step 7: Format non-Python files with Prettier (optional)
 if command -v prettier &> /dev/null; then

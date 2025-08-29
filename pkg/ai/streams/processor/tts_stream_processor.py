@@ -4,6 +4,16 @@ import time
 
 import sounddevice as sd
 
+from pkg.ai.models.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
+from pkg.ai.models.tts_model import LocalTextToSpeechModel, RemoteTextToSpeechModel
+from pkg.ai.models.ttt_model import LocalTextToTextModel, RemoteTextToTextModel
+from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
+from pkg.ai.streams.output.local.audio_producer import LocalAudioProducer
+from pkg.ai.streams.processor.aspd_stream_processor import (
+    AdvancedSpeechPauseDetectorStream,
+)
+from pkg.ai.streams.processor.stt_stream_processor import SpeechToTextStreamProcessor
+from pkg.ai.streams.processor.ttt_stream_processor import TextToTextStreamProcessor
 from pkg.config import (
     HF_API_TOKEN,
     STT_MODE,
@@ -82,18 +92,6 @@ class TextToSpeechStreamProcessor:
             except Exception:
                 pass
 
-
-# Assume your other classes are imported
-from pkg.ai.models.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
-from pkg.ai.models.tts_model import LocalTextToSpeechModel, RemoteTextToSpeechModel
-from pkg.ai.models.ttt_model import LocalTextToTextModel, RemoteTextToTextModel
-from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
-from pkg.ai.streams.output.local.audio_producer import LocalAudioProducer
-from pkg.ai.streams.processor.aspd_stream_processor import (
-    AdvancedSpeechPauseDetectorStream,
-)
-from pkg.ai.streams.processor.stt_stream_processor import SpeechToTextStreamProcessor
-from pkg.ai.streams.processor.ttt_stream_processor import TextToTextStreamProcessor
 
 if __name__ == "__main__":
     # 1. Initialize the core components and both queues

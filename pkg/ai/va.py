@@ -10,6 +10,7 @@ from pkg.ai.streams.output.local.audio_producer import LocalAudioProducer
 from pkg.ai.streams.processor.aspd_stream_processor import (
     AdvancedSpeechPauseDetectorStream,
 )
+from pkg.ai.streams.processor.helper import tts_finished_its_speech
 from pkg.ai.streams.processor.stt_stream_processor import SpeechToTextStreamProcessor
 from pkg.ai.streams.processor.tts_stream_processor import TextToSpeechStreamProcessor
 from pkg.ai.streams.processor.ttt_stream_processor import TextToTextStreamProcessor
@@ -165,7 +166,7 @@ class VirtualAssistant:
         self.components["speech_detector"] = AdvancedSpeechPauseDetectorStream(
             input_queue=self.queues["detector_input"],
             output_queue=self.queues["stt_input"],
-            long_pause_callback=self.config.get("long_pause_callback", lambda: None),
+            long_pause_callback=lambda: (print("L"), self.components["tts_processor"].speak()),
             short_pause_callback=self.config.get("short_pause_callback", lambda: None),
             sample_rate=self.config.get("sample_rate", 16000),
             frame_duration_ms=self.config.get("frame_duration_ms", 30),
@@ -194,6 +195,7 @@ class VirtualAssistant:
             tts_model=self.models["tts"],
             input_stream_queue=self.queues["tts_input"],
             output_stream_queue=self.queues["audio_producer_input"],
+            speech_ended_fn=tts_finished_its_speech.set,
         )
 
         # 6. Output Stream (configurable)
@@ -226,8 +228,8 @@ if __name__ == "__main__":
         "tts_model_local": TTS_MODEL_LOCAL,
         "tts_model_remote": TTS_MODEL_REMOTE,
         # Callbacks for advanced control (optional)
-        "long_pause_callback": lambda: print("[VAD: Long Pause Detected]"),
-        "short_pause_callback": lambda: print("[VAD: Short Pause Detected]"),
+        "long_pause_callback": lambda: print("L", end=""),
+        "short_pause_callback": lambda: print("S", end=""),
         "speak_callback": lambda is_speaking: print(
             f"[Playback Status: {'SPEAKING' if is_speaking else 'IDLE'}]",
         ),

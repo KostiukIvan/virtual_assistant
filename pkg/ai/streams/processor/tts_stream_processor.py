@@ -12,6 +12,7 @@ from pkg.ai.streams.output.local.audio_producer import LocalAudioProducer
 from pkg.ai.streams.processor.aspd_stream_processor import (
     AdvancedSpeechPauseDetectorStream,
 )
+from pkg.ai.streams.processor.helper import tts_finished_its_speech
 from pkg.ai.streams.processor.stt_stream_processor import SpeechToTextStreamProcessor
 from pkg.ai.streams.processor.ttt_stream_processor import TextToTextStreamProcessor
 from pkg.config import (
@@ -39,6 +40,7 @@ class TextToSpeechStreamProcessor:
         tts_model: object,
         input_stream_queue: queue.Queue,
         output_stream_queue: queue.Queue,
+        speech_ended_fn: callable,
     ) -> None:
         """Initializes the TextToSpeechStreamProcessor.
 
@@ -51,6 +53,9 @@ class TextToSpeechStreamProcessor:
         self.tts_model = tts_model
         self.input_stream_queue = input_stream_queue
         self.output_stream_queue = output_stream_queue
+
+        self.speech_ended_fn = speech_ended_fn
+        self.start_speaking = threading.Event()
 
         self.is_running = False
         self.thread = None
@@ -72,25 +77,38 @@ class TextToSpeechStreamProcessor:
             sd.stop()
             self.thread.join()
 
+    def speak(self) -> None:
+        """Trigger speaking of queued text."""
+        self.start_speaking.set()
+
     def _processing_loop(self) -> None:
-        """The main loop for consuming text and playing audio."""
+        """Main loop for consuming text and playing audio on demand."""
+        buffer = []
+
         while self.is_running:
             try:
-                # Get the bot's response text from the input queue
-                bot_response = self.input_stream_queue.get(timeout=1.0)
+                # Get bot response text if available
+                try:
+                    bot_response = self.input_stream_queue.get(timeout=0.2)
+                    if bot_response:
+                        buffer.append(bot_response)
+                except queue.Empty:
+                    pass
 
-                if not bot_response:  # Handle empty responses
-                    continue
+                # Only process when speak() was called
+                if self.start_speaking.is_set() and buffer:
+                    for text in buffer:
+                        try:
+                            audio_output = self.tts_model.text_to_speech(text)
+                            self.output_stream_queue.put(audio_output)
+                        except Exception:
+                            continue
+                    buffer.clear()
+                    self.start_speaking.clear()
+                    self.speech_ended_fn()
 
-                # Generate the audio from the text
-                audio_output = self.tts_model.text_to_speech(bot_response)
-
-                self.output_stream_queue.put(audio_output)
-
-            except queue.Empty:
-                continue
             except Exception:
-                pass
+                continue
 
 
 if __name__ == "__main__":
@@ -109,18 +127,6 @@ if __name__ == "__main__":
     audio_stream = LocalAudioStream(output_queue=STREAM_DETECTOR_INPUT_QUEUE)
 
     # 3. Start capturing audio
-
-    stream_detector = AdvancedSpeechPauseDetectorStream(
-        input_queue=STREAM_DETECTOR_INPUT_QUEUE,
-        output_queue=STT_INPUT_QUEUE,
-        long_pause_callback=lambda: print("LONG CALLBACK"),
-        short_pause_callback=lambda: print("SHORT CALLBACK"),
-        sample_rate=SAMPLE_RATE,
-        frame_duration_ms=FRAME_DURATION_MS,
-        vad_level=VAD_LEVEL,
-        short_pause_ms=SHORT_PAUSE_MS,
-        long_pause_ms=LONG_PAUSE_MS,
-    )
 
     STT_MODEL = (
         LocalSpeechToTextModel(STT_MODEL_LOCAL, device=device)
@@ -159,6 +165,19 @@ if __name__ == "__main__":
         tts_model=TTS_MODEL,
         input_stream_queue=TTS_INPUT_QUEUE,
         output_stream_queue=AUDIO_PRODUCER_INPUT_QUEUE,
+        speech_ended_fn=tts_finished_its_speech.set,
+    )
+
+    stream_detector = AdvancedSpeechPauseDetectorStream(
+        input_queue=STREAM_DETECTOR_INPUT_QUEUE,
+        output_queue=STT_INPUT_QUEUE,
+        long_pause_callback=lambda: (print("LONG CALLBACK"), tts_processor.speak()),
+        short_pause_callback=lambda: print("SHORT CALLBACK"),
+        sample_rate=SAMPLE_RATE,
+        frame_duration_ms=FRAME_DURATION_MS,
+        vad_level=VAD_LEVEL,
+        short_pause_ms=SHORT_PAUSE_MS,
+        long_pause_ms=LONG_PAUSE_MS,
     )
 
     audio_producer = LocalAudioProducer(

@@ -69,7 +69,9 @@ class TextToTextStreamProcessor:
                 user_text = self.input_stream_queue.get(timeout=1.0)
 
                 # Generate a response using the TTT model
+                print(user_text, end="")
                 bot_response = self.ttt_model.text_to_text(user_text)
+                print(bot_response, end="")
 
                 # Put the final response into the output queue
                 self.output_stream_queue.put(bot_response)

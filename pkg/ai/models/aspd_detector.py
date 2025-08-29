@@ -54,6 +54,7 @@ class AdvancedSpeechPauseDetector:
         # State tracking variables
         self.consecutive_silent_frames = 0
         self.pause_event_triggered = None  # Can be 'short' or 'long'
+        self.at_least_one_speech = False
 
         # Buffer to hold recent history of speech/silence results
         self.history = collections.deque(maxlen=history_frames)
@@ -83,6 +84,8 @@ class AdvancedSpeechPauseDetector:
 
         if is_speaking:
             # If we detect speech, reset the silence counter and any triggered events
+            if not self.at_least_one_speech:
+                self.at_least_one_speech = True
             self.consecutive_silent_frames = 0
             self.pause_event_triggered = None
             return "SPEECH"
@@ -92,13 +95,13 @@ class AdvancedSpeechPauseDetector:
         # This logic triggers the event only *once* when the threshold is first crossed.
 
         # Check for long pause first
-        if self.consecutive_silent_frames >= self._min_long_pause_frames:
+        if self.at_least_one_speech and self.consecutive_silent_frames >= self._min_long_pause_frames:
             if self.pause_event_triggered != "long":
                 self.pause_event_triggered = "long"
                 return "LONG_PAUSE"
 
         # Check for short pause
-        elif self.consecutive_silent_frames >= self._min_short_pause_frames:
+        elif self.at_least_one_speech and self.consecutive_silent_frames >= self._min_short_pause_frames:
             if self.pause_event_triggered is None:
                 self.pause_event_triggered = "short"
                 return "SHORT_PAUSE"

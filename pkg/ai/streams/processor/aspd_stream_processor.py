@@ -1,10 +1,12 @@
 import queue
+import sys
 import threading
 
 import numpy as np
 
 from pkg.ai.models.aspd_detector import AdvancedSpeechPauseDetector
 from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
+from pkg.ai.streams.processor.helper import tts_finished_its_speech
 
 
 class AdvancedSpeechPauseDetectorStream:
@@ -60,8 +62,15 @@ class AdvancedSpeechPauseDetectorStream:
                 # Process the chunk to detect pauses
                 status = self.detector.process_chunk(audio_chunk)
 
-                if status == "SPEECH":
+                if status == "SILENCE":
+                    print(".", end="")
+                    sys.stdout.flush()
+
+                if status == "SPEECH" and not tts_finished_its_speech.is_set():
+                    print("^", end="")
+                    sys.stdout.flush()
                     self.current_buffer.extend(audio_chunk.flatten())
+                    tts_finished_its_speech.clear()
 
                 # In the _processing_loop method
                 if status == "SHORT_PAUSE":
@@ -69,13 +78,9 @@ class AdvancedSpeechPauseDetectorStream:
                         audio_np = np.array(self.current_buffer, dtype=np.float32)
                         self.output_queue.put(audio_np)
                         self.current_buffer = []
-                    self.short_pause_callback()
+                        self.short_pause_callback()
 
                 if status == "LONG_PAUSE":
-                    if self.current_buffer:  # And also here
-                        audio_np = np.array(self.current_buffer, dtype=np.float32)
-                        self.output_queue.put(audio_np)
-                        self.current_buffer = []
                     self.long_pause_callback()
 
             except queue.Empty:
@@ -114,13 +119,13 @@ def main() -> None:
     stream_detector = AdvancedSpeechPauseDetectorStream(
         input_queue=mic_output_queue,
         output_queue=detector_output_queue,
-        long_pause_callback=lambda: print("\n--- LONG PAUSE DETECTED ---"),
-        short_pause_callback=lambda: print("\n--- SHORT PAUSE DETECTED ---"),
+        long_pause_callback=lambda: (print("L", end=""), sys.stdout.flush()),
+        short_pause_callback=lambda: (print("s", end=""), sys.stdout.flush()),
         sample_rate=16000,
         frame_duration_ms=30,
         vad_level=3,
-        short_pause_ms=300,
-        long_pause_ms=1500,
+        short_pause_ms=200,
+        long_pause_ms=700,
     )
 
     # 4. Start both processing threads

@@ -1,43 +1,43 @@
-import numpy as np
-import sounddevice as sd
-import webrtcvad
 import queue
-import collections
 import threading
-import time
+
+import numpy as np
+
 from pkg.ai.models.aspd_detector import AdvancedSpeechPauseDetector
 from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
 
 
 class AdvancedSpeechPauseDetectorStream:
-    """
-    Consumes audio frames from an input queue, detects speech pauses,
+    """Consumes audio frames from an input queue, detects speech pauses,
     and puts event messages into an output queue.
     """
-    def __init__(self,
-                 input_queue: queue.Queue,
-                 output_queue: queue.Queue,
-                 long_pause_callback: callable,
-                 short_pause_callback: callable,
-                 sample_rate: int = 16000,
-                 frame_duration_ms: int = 30,
-                 vad_level: int = 3,
-                 short_pause_ms: int = 250,
-                 long_pause_ms: int = 600):
-        """
-        Initializes the stream processor.
+
+    def __init__(
+        self,
+        input_queue: queue.Queue,
+        output_queue: queue.Queue,
+        long_pause_callback: callable,
+        short_pause_callback: callable,
+        sample_rate: int = 16000,
+        frame_duration_ms: int = 30,
+        vad_level: int = 3,
+        short_pause_ms: int = 250,
+        long_pause_ms: int = 600,
+    ) -> None:
+        """Initializes the stream processor.
 
         Args:
             input_queue (queue.Queue): Queue to get audio frames from.
             output_queue (queue.Queue): Queue to put pause event strings into.
             All other args are passed to the AdvancedSpeechPauseDetector.
+
         """
         self.input_queue = input_queue
         self.output_queue = output_queue
-        
+
         self.long_pause_callback = long_pause_callback
         self.short_pause_callback = short_pause_callback
-        
+
         self.detector = AdvancedSpeechPauseDetector(
             sample_rate=sample_rate,
             frame_duration_ms=frame_duration_ms,
@@ -49,69 +49,59 @@ class AdvancedSpeechPauseDetectorStream:
         self.is_running = False
         self.thread = None
         self.current_buffer = []
-        
-    def _processing_loop(self):
+
+    def _processing_loop(self) -> None:
         """The main loop for processing audio from the input queue."""
         while self.is_running:
             try:
                 # Get a chunk of audio from the input queue
                 audio_chunk = self.input_queue.get(timeout=1.0)
-                
+
                 # Process the chunk to detect pauses
                 status = self.detector.process_chunk(audio_chunk)
-                
+
                 if status == "SPEECH":
-                    print(".", end="")
                     self.current_buffer.extend(audio_chunk.flatten())
-                
+
                 # In the _processing_loop method
-                if status == "SHORT_PAUSE": 
-                    if self.current_buffer: # Add this check
+                if status == "SHORT_PAUSE":
+                    if self.current_buffer:  # Add this check
                         audio_np = np.array(self.current_buffer, dtype=np.float32)
                         self.output_queue.put(audio_np)
                         self.current_buffer = []
                     self.short_pause_callback()
 
                 if status == "LONG_PAUSE":
-                    if self.current_buffer: # And also here
+                    if self.current_buffer:  # And also here
                         audio_np = np.array(self.current_buffer, dtype=np.float32)
                         self.output_queue.put(audio_np)
                         self.current_buffer = []
                     self.long_pause_callback()
 
-
             except queue.Empty:
                 # If the input queue is empty, just continue waiting
                 continue
-            except Exception as e:
-                print(f"An error occurred in the processing loop: {e}")
+            except Exception:
                 break
-    
-    def start(self):
+
+    def start(self) -> None:
         """Starts the processing in a separate thread."""
         if self.is_running:
-            print("Stream processor is already running.")
             return
 
-        print("Starting speech pause detector stream processor...")
         self.is_running = True
         self.thread = threading.Thread(target=self._processing_loop, daemon=True)
         self.thread.start()
 
-    def stop(self):
+    def stop(self) -> None:
         """Stops the processing thread."""
-        print("Stopping speech pause detector stream processor...")
         self.is_running = False
         if self.thread:
-            self.thread.join() # Wait for the thread to finish
-        print("Stream processor stopped.")
+            self.thread.join()  # Wait for the thread to finish
 
 
-
-def main():
-    """
-    Example of using LocalAudioStream to feed an AdvancedSpeechPauseDetectorStream.
-    """
+def main() -> None:
+    """Example of using LocalAudioStream to feed an AdvancedSpeechPauseDetectorStream."""
     # 1. Create the queues to connect the components
     mic_output_queue = queue.Queue()
     detector_output_queue = queue.Queue()
@@ -130,38 +120,33 @@ def main():
         frame_duration_ms=30,
         vad_level=3,
         short_pause_ms=300,
-        long_pause_ms=1500
+        long_pause_ms=1500,
     )
-    
-    print("🎤 Microphone is active. Speak or pause to trigger callbacks.")
-    print("   Press Ctrl+C to stop the application.")
-    
+
     # 4. Start both processing threads
     audio_stream.start()
     stream_detector.start()
-    
+
     try:
         # 5. The main thread can now consume the final processed audio from the detector
         while True:
             try:
                 # Get the processed frame from the final queue
-                processed_frame = detector_output_queue.get(timeout=1.0)
+                detector_output_queue.get(timeout=1.0)
                 # For this demo, we just print a dot to show that frames are flowing through.
-                print(".", end="", flush=True)
-                
+
             except queue.Empty:
                 # This is normal if there's a brief gap in processing
                 continue
 
     except KeyboardInterrupt:
-        print("\nInterruption detected. Stopping application...")
-    except Exception as e:
-        print(f"An error occurred: {e}")
+        pass
+    except Exception:
+        pass
     finally:
         # 6. Stop the streams gracefully
         audio_stream.stop()
         stream_detector.stop()
-        print("Application finished.")
 
 
 if __name__ == "__main__":

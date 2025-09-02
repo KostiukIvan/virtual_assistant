@@ -10,7 +10,6 @@ from pkg.ai.streams.output.local.audio_producer import LocalAudioProducer
 from pkg.ai.streams.processor.aspd_stream_processor import (
     AdvancedSpeechPauseDetectorStream,
 )
-from pkg.ai.streams.processor.helper import tts_finished_its_speech
 from pkg.ai.streams.processor.stt_stream_processor import SpeechToTextStreamProcessor
 from pkg.ai.streams.processor.tts_stream_processor import TextToSpeechStreamProcessor
 from pkg.ai.streams.processor.ttt_stream_processor import TextToTextStreamProcessor
@@ -195,7 +194,6 @@ class VirtualAssistant:
             tts_model=self.models["tts"],
             input_stream_queue=self.queues["tts_input"],
             output_stream_queue=self.queues["audio_producer_input"],
-            speech_ended_fn=tts_finished_its_speech.set,
         )
 
         # 6. Output Stream (configurable)

@@ -6,7 +6,7 @@ import numpy as np
 
 from pkg.ai.models.aspd_detector import AdvancedSpeechPauseDetector
 from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
-from pkg.ai.streams.processor.helper import tts_finished_its_speech
+from pkg.ai.streams.processor.dispatcher import Dispatcher
 
 
 class AdvancedSpeechPauseDetectorStream:
@@ -18,13 +18,12 @@ class AdvancedSpeechPauseDetectorStream:
         self,
         input_queue: queue.Queue,
         output_queue: queue.Queue,
-        long_pause_callback: callable,
-        short_pause_callback: callable,
         sample_rate: int = 16000,
         frame_duration_ms: int = 30,
         vad_level: int = 3,
         short_pause_ms: int = 250,
         long_pause_ms: int = 600,
+        dispatcher: Dispatcher = None,
     ) -> None:
         """Initializes the stream processor.
 
@@ -37,9 +36,6 @@ class AdvancedSpeechPauseDetectorStream:
         self.input_queue = input_queue
         self.output_queue = output_queue
 
-        self.long_pause_callback = long_pause_callback
-        self.short_pause_callback = short_pause_callback
-
         self.detector = AdvancedSpeechPauseDetector(
             sample_rate=sample_rate,
             frame_duration_ms=frame_duration_ms,
@@ -47,6 +43,8 @@ class AdvancedSpeechPauseDetectorStream:
             short_pause_ms=short_pause_ms,
             long_pause_ms=long_pause_ms,
         )
+
+        self.dispatcher = dispatcher
 
         self.is_running = False
         self.thread = None
@@ -66,11 +64,10 @@ class AdvancedSpeechPauseDetectorStream:
                     print(".", end="")
                     sys.stdout.flush()
 
-                if status == "SPEECH" and not tts_finished_its_speech.is_set():
+                if status == "SPEECH" and self.dispatcher.is_listening():
                     print("^", end="")
                     sys.stdout.flush()
                     self.current_buffer.extend(audio_chunk.flatten())
-                    tts_finished_its_speech.clear()
 
                 # In the _processing_loop method
                 if status == "SHORT_PAUSE":
@@ -78,10 +75,9 @@ class AdvancedSpeechPauseDetectorStream:
                         audio_np = np.array(self.current_buffer, dtype=np.float32)
                         self.output_queue.put(audio_np)
                         self.current_buffer = []
-                        self.short_pause_callback()
 
-                if status == "LONG_PAUSE":
-                    self.long_pause_callback()
+                # if status == "LONG_PAUSE":
+                #     self.dispatcher.set_speaking_mode()
 
             except queue.Empty:
                 # If the input queue is empty, just continue waiting
@@ -119,8 +115,6 @@ def main() -> None:
     stream_detector = AdvancedSpeechPauseDetectorStream(
         input_queue=mic_output_queue,
         output_queue=detector_output_queue,
-        long_pause_callback=lambda: (print("L", end=""), sys.stdout.flush()),
-        short_pause_callback=lambda: (print("s", end=""), sys.stdout.flush()),
         sample_rate=16000,
         frame_duration_ms=30,
         vad_level=3,

@@ -5,6 +5,8 @@ import time
 import numpy as np
 import sounddevice as sd
 
+from pkg.ai.streams.processor.dispatcher import Dispatcher
+
 
 class LocalAudioProducer:
     """Consumes audio frames from an input queue and plays them through the local speakers."""
@@ -12,44 +14,49 @@ class LocalAudioProducer:
     def __init__(
         self,
         input_queue: queue.Queue,
-        speak_callback: callable,
         sample_rate: int = 16000,
         channels: int = 1,
         dtype: str = "float32",
+        dispatcher: Dispatcher = None,
     ) -> None:
         self.input_queue = input_queue
-        self.speak_callback = speak_callback
         self.sample_rate = sample_rate
         self.channels = channels
         self.dtype = dtype
         self.is_running = False
         self.thread = None
         self.stream = None
+        self.dispatcher = dispatcher
 
     def _production_loop(self) -> None:
-        """The main loop for playing audio from the queue."""
-        is_speaking = False
         try:
-            # The stream is created here and remains open
             self.stream = sd.OutputStream(
                 samplerate=self.sample_rate,
                 channels=self.channels,
                 dtype=self.dtype,
             )
             self.stream.start()
+
             while self.is_running:
                 try:
                     audio_chunk = self.input_queue.get(timeout=0.1)
-                    if not is_speaking:
-                        self.speak_callback(True)
-                        is_speaking = True
+
+                    if audio_chunk is None:
+                        # sentinel for stop
+                        break
+
+                    if self.dispatcher:
+                        self.dispatcher.set_speaking_mode()
+
                     self.stream.write(audio_chunk)
+
                 except queue.Empty:
-                    if is_speaking:
-                        self.speak_callback(False)
-                        is_speaking = False
-        except Exception:
-            pass
+                    if self.dispatcher and self.dispatcher.is_speaking():
+                        time.sleep(1)
+                        self.dispatcher.set_listening_mode()
+
+        except Exception as e:
+            print(f"[LocalAudioProducer] Error: {e}")
         finally:
             if self.stream:
                 self.stream.stop()

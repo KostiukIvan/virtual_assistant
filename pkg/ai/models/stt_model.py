@@ -31,6 +31,7 @@ class LocalSpeechToTextModel(SpeechToTextModel):
             "automatic-speech-recognition",
             model=self.model,
             device=self.device,
+            generate_kwargs={"language": "english"},
         )
 
     def audio_to_text(self, buffer: np.ndarray, sample_rate: int = 16000) -> str:

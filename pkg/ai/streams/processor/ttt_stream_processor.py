@@ -120,8 +120,6 @@ if __name__ == "__main__":
     stream_detector = AdvancedSpeechPauseDetectorStream(
         input_queue=STREAM_DETECTOR_INPUT_QUEUE,
         output_queue=STT_INPUT_QUEUE,
-        long_pause_callback=lambda: print("LONG CALLBACK"),
-        short_pause_callback=lambda: print("SHORT CALLBACK"),
         sample_rate=SAMPLE_RATE,
         frame_duration_ms=FRAME_DURATION_MS,
         vad_level=VAD_LEVEL,

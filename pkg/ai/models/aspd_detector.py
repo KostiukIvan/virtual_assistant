@@ -158,6 +158,7 @@ def main() -> None:
 
                 # Print only the "event" states to avoid cluttering the console
                 if status not in ["SPEECH", "SILENCE"]:
+                    print(status)
                     detector.consecutive_silent_frames * FRAME_DURATION_MS
 
     except KeyboardInterrupt:

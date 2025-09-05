@@ -12,7 +12,7 @@ from pkg.ai.streams.output.local.audio_producer import LocalAudioProducer
 from pkg.ai.streams.processor.aspd_stream_processor import (
     AdvancedSpeechPauseDetectorStream,
 )
-from pkg.ai.streams.processor.dispatcher import Dispatcher
+from pkg.ai.call_state_machines import BotOrchestrator, EventBus, UserFSM, BotFSM
 from pkg.ai.streams.processor.stt_stream_processor import SpeechToTextStreamProcessor
 from pkg.ai.streams.processor.ttt_stream_processor import TextToTextStreamProcessor
 from pkg.config import (
@@ -114,7 +114,11 @@ if __name__ == "__main__":
     TTS_INPUT_QUEUE = queue.Queue()
     AUDIO_PRODUCER_INPUT_QUEUE = queue.Queue()
 
-    dispatcher = Dispatcher()
+    bus = EventBus()
+    user = UserFSM(bus)
+    bot = BotFSM(bus)
+    botx = BotOrchestrator(bot)
+    
     audio_stream = LocalAudioStream(output_queue=STREAM_DETECTOR_INPUT_QUEUE)
 
     # 3. Start capturing audio
@@ -145,7 +149,8 @@ if __name__ == "__main__":
         vad_level=VAD_LEVEL,
         short_pause_ms=SHORT_PAUSE_MS,
         long_pause_ms=LONG_PAUSE_MS,
-        dispatcher=dispatcher,
+        botx=botx,
+        user=user,
     )
 
     # 2. Initialize the STT Processor
@@ -171,7 +176,7 @@ if __name__ == "__main__":
 
     audio_producer = LocalAudioProducer(
         input_queue=AUDIO_PRODUCER_INPUT_QUEUE,
-        dispatcher=dispatcher,
+        botx=botx,
     )
 
     # 4. Start all threaded components in order

@@ -6,7 +6,7 @@ import numpy as np
 
 from pkg.ai.models.aspd_detector import AdvancedSpeechPauseDetector
 from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
-from pkg.ai.streams.processor.dispatcher import Dispatcher
+from pkg.ai.call_state_machines import BotOrchestrator, EventBus, UserFSM, BotFSM
 
 
 class AdvancedSpeechPauseDetectorStream:
@@ -23,7 +23,8 @@ class AdvancedSpeechPauseDetectorStream:
         vad_level: int = 3,
         short_pause_ms: int = 250,
         long_pause_ms: int = 600,
-        dispatcher: Dispatcher = None,
+        botx: BotOrchestrator = None,
+        user: UserFSM = None,
     ) -> None:
         """Initializes the stream processor.
 
@@ -44,7 +45,8 @@ class AdvancedSpeechPauseDetectorStream:
             long_pause_ms=long_pause_ms,
         )
 
-        self.dispatcher = dispatcher
+        self.botx = botx
+        self.user = user
 
         self.is_running = False
         self.thread = None
@@ -56,18 +58,21 @@ class AdvancedSpeechPauseDetectorStream:
             try:
                 # Get a chunk of audio from the input queue
                 audio_chunk = self.input_queue.get(timeout=1.0)
-
-                # Process the chunk to detect pauses
+                
+                
+                self.current_buffer.extend(audio_chunk.flatten())
                 status = self.detector.process_chunk(audio_chunk)
 
                 if status == "SILENCE":
                     print(".", end="")
                     sys.stdout.flush()
 
-                if status == "SPEECH" and self.dispatcher.is_listening():
+                if status == "SPEECH":
                     print("^", end="")
+                    if not self.user.is_speaking():
+                        self.user.user_starts_speaking()
+                        self.botx.ensure_listening()
                     sys.stdout.flush()
-                    self.current_buffer.extend(audio_chunk.flatten())
 
                 # In the _processing_loop method
                 if status == "SHORT_PAUSE":
@@ -75,14 +80,18 @@ class AdvancedSpeechPauseDetectorStream:
                         audio_np = np.array(self.current_buffer, dtype=np.float32)
                         self.output_queue.put(audio_np)
                         self.current_buffer = []
+                        self.user.short_pause()
 
-                # if status == "LONG_PAUSE":
-                #     self.dispatcher.set_speaking_mode()
+                if status == "LONG_PAUSE":
+                    self.user.long_pause()
+                    # self.botx.speak_pipeline()
+                    self.botx.set_speaking()
 
             except queue.Empty:
                 # If the input queue is empty, just continue waiting
                 continue
-            except Exception:
+            except Exception as e:
+                print(e)
                 break
 
     def start(self) -> None:
@@ -103,6 +112,11 @@ class AdvancedSpeechPauseDetectorStream:
 
 def main() -> None:
     """Example of using LocalAudioStream to feed an AdvancedSpeechPauseDetectorStream."""
+    bus = EventBus()
+    user = UserFSM(bus)
+    bot = BotFSM(bus)
+    botx = BotOrchestrator(bot)
+    
     # 1. Create the queues to connect the components
     mic_output_queue = queue.Queue()
     detector_output_queue = queue.Queue()
@@ -120,6 +134,8 @@ def main() -> None:
         vad_level=3,
         short_pause_ms=200,
         long_pause_ms=700,
+        botx=botx,
+        user=user,
     )
 
     # 4. Start both processing threads

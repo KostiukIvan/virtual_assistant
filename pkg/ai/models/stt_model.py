@@ -125,16 +125,13 @@ def main() -> None:
             audio_float, _ = stream.read(frame_samples)
             audio_chunk = audio_float.flatten()
 
-            if detector.is_speech(audio_chunk):
-                if not recording:
-                    pass
-                buffer.extend(audio_chunk)
-                recording = True
-            else:
+            buffer.extend(audio_chunk)
+            if not detector.is_speech(audio_chunk):
                 if recording and len(buffer) > 5000:  # Transcribe if speech is long enough
                     audio_np = np.array(buffer, dtype=np.float32)
-                    stt.audio_to_text(audio_np, sample_rate=sample_rate)
+                    text = stt.audio_to_text(audio_np, sample_rate=sample_rate)
                     buffer = []  # Clear buffer after transcription
+                    print(text)
 
                 # If it was recording but the audio is too short, just reset
                 if recording:

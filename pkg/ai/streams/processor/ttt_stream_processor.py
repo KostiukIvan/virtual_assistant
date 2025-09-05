@@ -18,6 +18,7 @@ from pkg.config import (
     TTT_MODEL_REMOTE,
     device,
 )
+from pkg.ai.call_state_machines import BotOrchestrator, EventBus, UserFSM, BotFSM
 
 
 class TextToTextStreamProcessor:
@@ -112,7 +113,11 @@ if __name__ == "__main__":
     STT_INPUT_QUEUE = queue.Queue()
     TTT_INPUT_QUEUE = queue.Queue()
     TTS_INPUT_QUEUE = queue.Queue()
-
+    
+    bus = EventBus()
+    user = UserFSM(bus)
+    bot = BotFSM(bus)
+    botx = BotOrchestrator(bot)
     audio_stream = LocalAudioStream(output_queue=STREAM_DETECTOR_INPUT_QUEUE)
 
     # 3. Start capturing audio
@@ -125,6 +130,8 @@ if __name__ == "__main__":
         vad_level=VAD_LEVEL,
         short_pause_ms=SHORT_PAUSE_MS,
         long_pause_ms=LONG_PAUSE_MS,
+        botx=botx,
+        user=user,
     )
 
     STT_MODEL = (

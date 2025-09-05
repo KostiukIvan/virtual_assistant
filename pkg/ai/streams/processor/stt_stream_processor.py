@@ -7,6 +7,7 @@ from pkg.ai.streams.processor.aspd_stream_processor import (
     AdvancedSpeechPauseDetectorStream,
 )
 from pkg.config import HF_API_TOKEN, STT_MODE, STT_MODEL_LOCAL, STT_MODEL_REMOTE, device
+from pkg.ai.call_state_machines import BotOrchestrator, EventBus, UserFSM, BotFSM
 
 
 class SpeechToTextStreamProcessor:
@@ -101,6 +102,12 @@ if __name__ == "__main__":
 
     audio_stream = LocalAudioStream(output_queue=STREAM_DETECTOR_INPUT_QUEUE)
 
+    bus = EventBus()
+    user = UserFSM(bus)
+    
+    bot = BotFSM(bus)
+    botx = BotOrchestrator(bot)
+    
     # 3. Start capturing audio
     audio_stream.start()
 
@@ -112,6 +119,8 @@ if __name__ == "__main__":
         vad_level=VAD_LEVEL,
         short_pause_ms=SHORT_PAUSE_MS,
         long_pause_ms=LONG_PAUSE_MS,
+        botx=botx,
+        user=user,
     )
 
     STT_MODEL = (

@@ -1,4 +1,5 @@
 import queue
+import sys
 import threading
 import time
 
@@ -7,12 +8,12 @@ import sounddevice as sd
 from pkg.ai.models.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
 from pkg.ai.models.tts_model import LocalTextToSpeechModel, RemoteTextToSpeechModel
 from pkg.ai.models.ttt_model import LocalTextToTextModel, RemoteTextToTextModel
+from pkg.ai.streams.acousting_echo_canceller import AcousticEchoCanceller
 from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
 from pkg.ai.streams.output.local.audio_producer import LocalAudioProducer
 from pkg.ai.streams.processor.aspd_stream_processor import (
     AdvancedSpeechPauseDetectorStream,
 )
-from pkg.ai.call_state_machines import BotOrchestrator, EventBus, UserFSM, BotFSM
 from pkg.ai.streams.processor.stt_stream_processor import SpeechToTextStreamProcessor
 from pkg.ai.streams.processor.ttt_stream_processor import TextToTextStreamProcessor
 from pkg.config import (
@@ -76,128 +77,147 @@ class TextToSpeechStreamProcessor:
     def _processing_loop(self) -> None:
         """Main loop for consuming text and playing audio on demand."""
         buffer = []
-
+        events = set()
         while self.is_running:
             # Get bot response text if available
             try:
-                bot_response = self.input_stream_queue.get(timeout=0.2)
+                data = self.input_stream_queue.get(timeout=0.2)
+                bot_response = data["data"]
+                events.add(data["event"])
+                print("TTS E = ", data["event"], events)
+                sys.stdout.flush()
                 if bot_response:
                     buffer.append(bot_response)
             except queue.Empty:
                 pass
 
-            try:
-                # Only process when speak() was called
-                if buffer:
-                    for text in buffer:
-                        try:
-                            audio_output = self.tts_model.text_to_speech(text)
-                            self.output_stream_queue.put(audio_output)
-                        except Exception:
-                            continue
-                    buffer.clear()
+            if "L" in events:
+                for text in buffer:
+                    try:
+                        audio_output = self.tts_model.text_to_speech(text)
 
-            except Exception:
-                continue
+                        self.output_stream_queue.put({"data": audio_output, "event": "L"})
+                    except Exception:
+                        continue
+                buffer.clear()
+                events = set()
 
 
 if __name__ == "__main__":
-    # 1. Initialize the core components and both queues
+    # ==== SETTINGS ====
     SAMPLE_RATE = 16000
     FRAME_DURATION_MS = 30
+    FRAME_SAMPLES = int(SAMPLE_RATE * FRAME_DURATION_MS / 1000)
     VAD_LEVEL = 3
     SHORT_PAUSE_MS = 300
     LONG_PAUSE_MS = 1000
-    STREAM_DETECTOR_INPUT_QUEUE = queue.Queue()
+
+    # ==== QUEUES ====
+    mic_raw_queue = queue.Queue(maxsize=200)  # raw mic frames
+    playback_ref_queue = queue.Queue(maxsize=200)  # audio that went to speaker
+    mic_clean_queue = queue.Queue(maxsize=200)  # mic after AEC
+    playback_in_queue = queue.Queue(maxsize=200)  # audio to play (TTS responses)
+
     STT_INPUT_QUEUE = queue.Queue()
     TTT_INPUT_QUEUE = queue.Queue()
     TTS_INPUT_QUEUE = queue.Queue()
-    AUDIO_PRODUCER_INPUT_QUEUE = queue.Queue()
+    AUDIO_PRODUCER_INPUT_QUEUE = playback_in_queue  # alias
 
-    bus = EventBus()
-    user = UserFSM(bus)
-    bot = BotFSM(bus)
-    botx = BotOrchestrator(bot)
-    
-    audio_stream = LocalAudioStream(output_queue=STREAM_DETECTOR_INPUT_QUEUE)
-
-    # 3. Start capturing audio
-
+    # Speech processing models
     STT_MODEL = (
         LocalSpeechToTextModel(STT_MODEL_LOCAL, device=device)
         if STT_MODE == "local"
         else RemoteSpeechToTextModel(STT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
     )
-
     TTT_MODEL = (
         LocalTextToTextModel(TTT_MODEL_LOCAL, device=device)
         if TTT_MODE == "local"
         else RemoteTextToTextModel(TTT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
     )
-
     TTS_MODEL = (
         LocalTextToSpeechModel(TTS_MODEL_LOCAL, device=device)
         if TTS_MODE == "local"
         else RemoteTextToSpeechModel(TTS_MODEL_REMOTE, hf_token=HF_API_TOKEN)
     )
 
+    # ==== COMPONENTS ====
+
+    # Audio in/out
+    audio_stream = LocalAudioStream(
+        output_queue=mic_raw_queue,
+        sample_rate=SAMPLE_RATE,
+        frame_duration_ms=FRAME_DURATION_MS,
+    )
+
+    audio_producer = LocalAudioProducer(
+        input_queue=playback_in_queue,
+        playback_ref_queue=playback_ref_queue,
+        sample_rate=SAMPLE_RATE,
+        channels=1,
+        dtype="float32",
+    )
+
+    # Acoustic Echo Canceller
+    aec = AcousticEchoCanceller(
+        mic_queue=mic_raw_queue,
+        playback_ref_queue=playback_ref_queue,
+        output_queue=mic_clean_queue,
+        sample_rate=SAMPLE_RATE,
+        frame_size=FRAME_SAMPLES,
+        mu=0.12,
+        leak=1e-4,
+    )
+
+    # Pause detector (takes CLEAN mic frames after AEC)
     stream_detector = AdvancedSpeechPauseDetectorStream(
-        input_queue=STREAM_DETECTOR_INPUT_QUEUE,
+        input_queue=mic_clean_queue,
         output_queue=STT_INPUT_QUEUE,
         sample_rate=SAMPLE_RATE,
         frame_duration_ms=FRAME_DURATION_MS,
         vad_level=VAD_LEVEL,
         short_pause_ms=SHORT_PAUSE_MS,
         long_pause_ms=LONG_PAUSE_MS,
-        botx=botx,
-        user=user,
     )
 
-    # 2. Initialize the STT Processor
+    # STT → TTT → TTS processors
     stt_processor = SpeechToTextStreamProcessor(
         stt_model=STT_MODEL,
         input_stream_queue=STT_INPUT_QUEUE,
         output_stream_queue=TTT_INPUT_QUEUE,
         sample_rate=SAMPLE_RATE,
     )
-
-    # 3. Initialize the new TTT Processor
     ttt_processor = TextToTextStreamProcessor(
         ttt_model=TTT_MODEL,
-        input_stream_queue=TTT_INPUT_QUEUE,  # Takes input from the user text queue
-        output_stream_queue=TTS_INPUT_QUEUE,  # Outputs to the final response queue
+        input_stream_queue=TTT_INPUT_QUEUE,
+        output_stream_queue=TTS_INPUT_QUEUE,
     )
-
     tts_processor = TextToSpeechStreamProcessor(
         tts_model=TTS_MODEL,
         input_stream_queue=TTS_INPUT_QUEUE,
-        output_stream_queue=AUDIO_PRODUCER_INPUT_QUEUE,
+        output_stream_queue=playback_in_queue,  # goes directly to speaker
     )
 
-    audio_producer = LocalAudioProducer(
-        input_queue=AUDIO_PRODUCER_INPUT_QUEUE,
-        botx=botx,
-    )
-
-    # 4. Start all threaded components in order
+    # ==== START THREADS ====
     audio_stream.start()
+    audio_producer.start()
+    aec.start()
     stream_detector.start()
     stt_processor.start()
     ttt_processor.start()
     tts_processor.start()
-    audio_producer.start()
 
     try:
-        # The main thread can simply wait, as all work is done in the background
+        print("Assistant running. Speak into the mic...")
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        pass
+        print("Shutting down...")
     finally:
-        # 5. Stop all components gracefully
+        # Stop components gracefully
         audio_stream.stop()
+        audio_producer.stop()
+        aec.stop()
         stream_detector.stop()
         stt_processor.stop()
         ttt_processor.stop()
         tts_processor.stop()
-        audio_producer.stop()

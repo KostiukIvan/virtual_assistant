@@ -18,7 +18,6 @@ from pkg.config import (
     TTT_MODEL_REMOTE,
     device,
 )
-from pkg.ai.call_state_machines import BotOrchestrator, EventBus, UserFSM, BotFSM
 
 
 class TextToTextStreamProcessor:
@@ -67,7 +66,15 @@ class TextToTextStreamProcessor:
         while self.is_running:
             try:
                 # Get transcribed text from the input queue
-                user_text = self.input_stream_queue.get(timeout=1.0)
+                data = self.input_stream_queue.get(timeout=1.0)
+                user_text = data["data"]
+                event = data["event"]
+
+                if event == "L" and user_text is None:
+                    self.output_stream_queue.put({"data": None, "event": event})
+
+                if user_text is None:
+                    continue
 
                 # Generate a response using the TTT model
                 print(user_text, end="")
@@ -75,7 +82,7 @@ class TextToTextStreamProcessor:
                 print(bot_response, end="")
 
                 # Put the final response into the output queue
-                self.output_stream_queue.put(bot_response)
+                self.output_stream_queue.put({"data": bot_response, "event": event})
 
             except queue.Empty:
                 continue
@@ -113,13 +120,8 @@ if __name__ == "__main__":
     STT_INPUT_QUEUE = queue.Queue()
     TTT_INPUT_QUEUE = queue.Queue()
     TTS_INPUT_QUEUE = queue.Queue()
-    
-    bus = EventBus()
-    user = UserFSM(bus)
-    bot = BotFSM(bus)
-    botx = BotOrchestrator(bot)
-    audio_stream = LocalAudioStream(output_queue=STREAM_DETECTOR_INPUT_QUEUE)
 
+    audio_stream = LocalAudioStream(output_queue=STREAM_DETECTOR_INPUT_QUEUE)
     # 3. Start capturing audio
 
     stream_detector = AdvancedSpeechPauseDetectorStream(
@@ -130,8 +132,6 @@ if __name__ == "__main__":
         vad_level=VAD_LEVEL,
         short_pause_ms=SHORT_PAUSE_MS,
         long_pause_ms=LONG_PAUSE_MS,
-        botx=botx,
-        user=user,
     )
 
     STT_MODEL = (
@@ -171,7 +171,8 @@ if __name__ == "__main__":
         # The main thread now listens for the final bot response
         while True:
             try:
-                bot_reply = TTS_INPUT_QUEUE.get(timeout=1.0)
+                data = TTS_INPUT_QUEUE.get(timeout=1.0)
+                bot_reply = data["data"]
             except queue.Empty:
                 continue
     except KeyboardInterrupt:

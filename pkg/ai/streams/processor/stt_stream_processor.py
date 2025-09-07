@@ -7,7 +7,6 @@ from pkg.ai.streams.processor.aspd_stream_processor import (
     AdvancedSpeechPauseDetectorStream,
 )
 from pkg.config import HF_API_TOKEN, STT_MODE, STT_MODEL_LOCAL, STT_MODEL_REMOTE, device
-from pkg.ai.call_state_machines import BotOrchestrator, EventBus, UserFSM, BotFSM
 
 
 class SpeechToTextStreamProcessor:
@@ -61,32 +60,32 @@ class SpeechToTextStreamProcessor:
         """
         while self.is_running:
             try:
-                # Get a complete audio chunk from the input queue.
-                # The upstream processor (AdvancedSpeechPauseDetectorStream) is
-                # responsible for sending a complete utterance here.
-                audio_chunk = self.input_stream_queue.get(timeout=1.0)
+                data = self.input_stream_queue.get(timeout=1.0)
+                audio_chunk = data["data"]
+                event = data["event"]
+
+                if event == "L" and audio_chunk is None:
+                    self.output_stream_queue.put({"data": None, "event": "L"})
 
                 if audio_chunk is None:
                     continue
 
-                audio_chunk = audio_chunk.flatten()
                 # Perform speech-to-text on the received chunk
                 text = self.stt_model.audio_to_text(
-                    audio_chunk,
+                    audio_chunk.flatten(),
                     sample_rate=self.sample_rate,
                 )
                 if text:
                     # Place the final text into the output queue
-                    self.output_stream_queue.put(text)
+                    self.output_stream_queue.put({"data": text, "event": event})
                 else:
-                    # Optional: handle cases where the model returns no text
-                    pass
+                    self.output_stream_queue.put({"data": None, "event": event})
 
             except queue.Empty:
                 # This is expected when there's no speech.
                 continue
-            except Exception:
-                pass
+            except Exception as e:
+                print(e)
 
 
 if __name__ == "__main__":
@@ -102,12 +101,6 @@ if __name__ == "__main__":
 
     audio_stream = LocalAudioStream(output_queue=STREAM_DETECTOR_INPUT_QUEUE)
 
-    bus = EventBus()
-    user = UserFSM(bus)
-    
-    bot = BotFSM(bus)
-    botx = BotOrchestrator(bot)
-    
     # 3. Start capturing audio
     audio_stream.start()
 
@@ -119,8 +112,6 @@ if __name__ == "__main__":
         vad_level=VAD_LEVEL,
         short_pause_ms=SHORT_PAUSE_MS,
         long_pause_ms=LONG_PAUSE_MS,
-        botx=botx,
-        user=user,
     )
 
     STT_MODEL = (
@@ -145,7 +136,10 @@ if __name__ == "__main__":
         # The main thread now listens for results from the TTT_INPUT_QUEUE
         while True:
             try:
-                transcribed_text = TTT_INPUT_QUEUE.get(timeout=1.0)
+                data = TTT_INPUT_QUEUE.get(timeout=1.0)
+                transcribed_text = data["data"]
+                event = data["event"]
+                print(transcribed_text, end="")
             except queue.Empty:
                 continue
     except KeyboardInterrupt:

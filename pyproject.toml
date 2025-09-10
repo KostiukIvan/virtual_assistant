@@ -71,7 +71,7 @@ exclude = ["tests", "migrations"]
 # recursive = true
 
 [tool.pytest.ini_options]
-addopts = "-ra -q --cov=."
+addopts = "-ra -q "
 testpaths = ["tests"]
 
 [tool.coverage.run]

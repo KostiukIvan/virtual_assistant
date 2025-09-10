@@ -52,7 +52,7 @@ class AdvancedSpeechPauseDetectorStream:
             try:
                 # Get a chunk of audio from the input queue
                 audio_chunk = self.input_queue.get(timeout=1.0)
-
+                # print(audio_chunk.min(), audio_chunk.max(), type( audio_chunk))
                 self.current_buffer.extend(audio_chunk.flatten())
                 status = self.detector.process_chunk(audio_chunk)
 

@@ -1,5 +1,6 @@
 import queue
 import threading
+import time
 
 import numpy as np
 import sounddevice as sd
@@ -47,7 +48,7 @@ class LocalAudioStream:
                         # but different versions behave differently; to be robust:
                         if isinstance(frame, tuple) or isinstance(frame, list):
                             frame = np.asarray(frame[0])
-                        self.output_queue.put(frame.copy())
+                        self.output_queue.put((time.monotonic_ns(), frame.copy()))
                     except Exception as e:
                         print("[LocalAudioStream] read error: %s", e)
                         break
@@ -79,7 +80,9 @@ def main() -> None:
     audio_frames_queue = queue.Queue()
 
     # 2. Initialize the audio stream component
-    audio_stream = LocalAudioStream(output_queue=audio_frames_queue)
+    audio_stream = LocalAudioStream(
+        output_queue=audio_frames_queue, sample_rate=32000, frame_duration_ms=60, channels=1
+    )
 
     # 3. Start capturing audio
     audio_stream.start()
@@ -89,7 +92,8 @@ def main() -> None:
         while True:
             try:
                 # Get a frame from the queue
-                audio_frames_queue.get(timeout=1.0)
+                timestamp, frame = audio_frames_queue.get(timeout=1.0)
+                print(len(frame), frame.min(), frame.max())
 
                 # In a real application, you would process the frame here.
                 # For this demo, we just print a dot to show that frames are being received.

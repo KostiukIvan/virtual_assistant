@@ -1,5 +1,6 @@
 import queue
 import threading
+import time
 
 import numpy as np
 import sounddevice as sd
@@ -75,17 +76,8 @@ class LocalAudioProducer:
                         frame = audio_chunk[cursor : cursor + frame_size]
                         cursor += frame_size
 
-                        # Send to AEC ref queue
-                        try:
-                            self.playback_ref_queue.put_nowait(frame.copy())
-                        except queue.Full:
-                            pass
-
-                        # Play to speaker
-                        try:
-                            self.stream.write(frame)
-                        except Exception as e:
-                            print("[LocalAudioProducer] stream write failed:", e)
+                        self.playback_ref_queue.put_nowait((time.monotonic_ns(), frame.copy()))
+                        self.stream.write(frame)
 
                     # Save any incomplete tail for next iteration
                     leftover = audio_chunk[cursor:]

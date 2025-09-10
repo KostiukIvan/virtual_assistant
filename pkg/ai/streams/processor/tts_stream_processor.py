@@ -5,10 +5,10 @@ import time
 
 import sounddevice as sd
 
+from pkg.ai.aec.mic_disabler_during_speech import AECWorker
 from pkg.ai.models.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
 from pkg.ai.models.tts_model import LocalTextToSpeechModel, RemoteTextToSpeechModel
 from pkg.ai.models.ttt_model import LocalTextToTextModel, RemoteTextToTextModel
-from pkg.ai.streams.acousting_echo_canceller import AcousticEchoCanceller
 from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
 from pkg.ai.streams.output.local.audio_producer import LocalAudioProducer
 from pkg.ai.streams.processor.aspd_stream_processor import (
@@ -121,7 +121,6 @@ if __name__ == "__main__":
     STT_INPUT_QUEUE = queue.Queue()
     TTT_INPUT_QUEUE = queue.Queue()
     TTS_INPUT_QUEUE = queue.Queue()
-    AUDIO_PRODUCER_INPUT_QUEUE = playback_in_queue  # alias
 
     # Speech processing models
     STT_MODEL = (
@@ -158,14 +157,14 @@ if __name__ == "__main__":
     )
 
     # Acoustic Echo Canceller
-    aec = AcousticEchoCanceller(
+    aec = AECWorker(
         mic_queue=mic_raw_queue,
         playback_ref_queue=playback_ref_queue,
         output_queue=mic_clean_queue,
-        sample_rate=SAMPLE_RATE,
         frame_size=FRAME_SAMPLES,
-        mu=0.12,
-        leak=1e-4,
+        # filter_length=FRAME_SAMPLES*20,
+        sample_rate=SAMPLE_RATE,
+        # max_buffer_ms=500,
     )
 
     # Pause detector (takes CLEAN mic frames after AEC)

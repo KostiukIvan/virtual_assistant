@@ -145,29 +145,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-# _R_LISTENING_...........................................^
-# _C_SPEAKING_^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^.........
-# _C_SHORT_PAUSE_.^
-# _C_SPEAKING_^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Tell me at least when was the last time you spoke^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^.........
-# _C_SHORT_PAUSE_.............^
-# _C_SPEAKING_^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^. I spoke to her about a week ago. I was so happy to hear from her. with someone who is incredibly interested to you......^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ That's true, but it's hard to find someone who's interested in you. I guess I'll just have to keep trying.^^^^^^^^^^^^^^^^^^^^........^^^^^^^^
-# _R_PROCESSING_
-# _R_SPEAKING_^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^.........
-# _C_SHORT_PAUSE_.....^
-# _C_SPEAKING_
-# _R_LISTENING_^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^.........
-# _C_SHORT_PAUSE_.........._R_PROCESSING_
-# _R_SPEAKING_..... Maybe it was your friend, maybe it was your teacher or someone else. I spoke to her about a week ago......^
-# _C_SPEAKING_
-# _R_LISTENING_^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ I don't think it was my friend. It was a stranger. I was so scared. I was so happy to hear from her.^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ I bet you were.  What did she do to make you so happy?  Was it a surprise?^^^^^^^^^^^^^^.........
-# _C_SHORT_PAUSE_..................^
-# _C_SPEAKING_^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ That's true, but it's hard to find someone who's interested in you.^^^^^^^
-# _R_PROCESSING_
-# _R_SPEAKING_^^^^.......^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ I know, but I'm trying to be optimistic about it. It's just hard when you know you're good at what you do.^^^^^^^^^^^^^^^^^^^^^^^^^^.........
-# _C_SHORT_PAUSE_.^
-# _C_SPEAKING_
-# _R_LISTENING_^^^^^^^^^^^^^^^^^^^^^^^^^
-# _R_PROCESSING_
-# _R_SPEAKING_^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^.........^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ I guess I'll just have to keep trying. I don't think it was my friend. It was a stranger.^^^^^^^^^^^^^^^^^^^^^^^.. I'm sorry to hear that. I hope you can find a way to get over it.......^^^^^^^^^^^^^^^^^^^^^^^^^^.......^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^C^

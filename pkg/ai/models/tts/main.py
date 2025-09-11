@@ -1,26 +1,18 @@
-import io
-import os
-
 import numpy as np
 
 # New imports for remote models
-import requests
 import sounddevice as sd
-import torch
 
 # New import for remote TTS audio processing
-from scipy.io import wavfile
-from transformers import SpeechT5ForTextToSpeech, SpeechT5HifiGan, SpeechT5Processor
-
 from pkg.ai.models.aspd.aspd_detector import AdvancedSpeechPauseDetector
 
-from pkg.ai.models.tts.tts_local import LocalTextToSpeechModel
-from pkg.ai.models.tts.tts_remote import RemoteTextToSpeechModel
 # Assume these classes are defined in their respective files as before
 from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
 from pkg.ai.models.stt.stt_remote import RemoteSpeechToTextModel
-from pkg.ai.models.ttt.ttt_remote import RemoteTextToTextModel
+from pkg.ai.models.tts.tts_local import LocalTextToSpeechModel
+from pkg.ai.models.tts.tts_remote import RemoteTextToSpeechModel
 from pkg.ai.models.ttt.ttt_local import LocalTextToTextModel
+from pkg.ai.models.ttt.ttt_remote import RemoteTextToTextModel
 from pkg.config import (
     HF_API_TOKEN,
     STT_MODE,
@@ -34,6 +26,7 @@ from pkg.config import (
     TTT_MODEL_REMOTE,
     device,
 )
+
 
 # ===== Main Conversational Loop =====
 def main() -> None:

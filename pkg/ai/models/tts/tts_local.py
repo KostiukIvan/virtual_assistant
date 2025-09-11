@@ -1,30 +1,13 @@
-import io
-import os
-
 import numpy as np
-
-
 import torch
 
 # New import for remote TTS audio processing
-from scipy.io import wavfile
 from transformers import SpeechT5ForTextToSpeech, SpeechT5HifiGan, SpeechT5Processor
 
 from pkg.ai.models.tts.tts_interface import TextToSpeechModel
 from pkg.config import (
-    HF_API_TOKEN,
-    STT_MODE,
-    STT_MODEL_LOCAL,
-    STT_MODEL_REMOTE,
-    TTS_MODE,
     TTS_MODEL_LOCAL,
-    TTS_MODEL_REMOTE,
-    TTT_MODE,
-    TTT_MODEL_LOCAL,
-    TTT_MODEL_REMOTE,
-    device,
 )
-
 
 
 # ===== Local HuggingFace TTS (Corrected with Placeholder) =====
@@ -55,4 +38,3 @@ class LocalTextToSpeechModel(TextToSpeechModel):
             vocoder=self.vocoder,
         )
         return speech_output.cpu().numpy()
-

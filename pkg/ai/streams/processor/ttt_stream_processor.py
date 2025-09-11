@@ -3,8 +3,8 @@ import threading
 
 from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
 from pkg.ai.models.stt.stt_remote import RemoteSpeechToTextModel
-from pkg.ai.models.ttt.ttt_remote import RemoteTextToTextModel
 from pkg.ai.models.ttt.ttt_local import LocalTextToTextModel
+from pkg.ai.models.ttt.ttt_remote import RemoteTextToTextModel
 from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
 from pkg.ai.streams.processor.aspd_stream_processor import (
     AdvancedSpeechPauseDetectorStream,

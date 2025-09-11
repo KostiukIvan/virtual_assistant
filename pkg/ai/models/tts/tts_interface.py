@@ -1,4 +1,3 @@
-
 import numpy as np
 
 
@@ -10,4 +9,3 @@ class TextToSpeechModel:
 
     def text_to_speech(self, text: str) -> np.ndarray:
         raise NotImplementedError
-

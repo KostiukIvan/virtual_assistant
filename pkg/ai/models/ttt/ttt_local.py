@@ -1,22 +1,9 @@
-import os
-
-import numpy as np
-import requests
-import sounddevice as sd
 from transformers import Pipeline, pipeline
 
 from pkg.ai.models.ttt.ttt_interface import TextToTextModel
 from pkg.config import (
-    HF_API_TOKEN,
-    STT_MODE,
-    STT_MODEL_LOCAL,
-    STT_MODEL_REMOTE,
-    TTT_MODE,
     TTT_MODEL_LOCAL,
-    TTT_MODEL_REMOTE,
-    device,
 )
-
 
 
 class LocalTextToTextModel(TextToTextModel):
@@ -74,4 +61,3 @@ class LocalTextToTextModel(TextToTextModel):
         except Exception as e:
             # Graceful fallback
             return f"[LocalTextToTextModel error: {e}]"
-

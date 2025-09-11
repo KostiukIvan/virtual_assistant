@@ -1,17 +1,10 @@
-import os
-import wave
-
 import numpy as np
-import requests
 import sounddevice as sd
-from transformers import pipeline
 
 from pkg.ai.models.aspd.aspd_detector import AdvancedSpeechPauseDetector
-from pkg.ai.models.stt.stt_interface import SpeechToTextModel
 from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
 from pkg.ai.models.stt.stt_remote import RemoteSpeechToTextModel
 from pkg.config import HF_API_TOKEN, STT_MODE, STT_MODEL_LOCAL, STT_MODEL_REMOTE, device
-from pkg.utils import float_to_pcm16
 
 
 # ===== Main test loop =====

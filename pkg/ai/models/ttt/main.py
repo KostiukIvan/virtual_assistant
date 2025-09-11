@@ -1,13 +1,11 @@
-
 import numpy as np
 import sounddevice as sd
 
 from pkg.ai.models.aspd.aspd_detector import AdvancedSpeechPauseDetector
-from pkg.ai.models.ttt.ttt_local import LocalTextToTextModel
-from pkg.ai.models.ttt.ttt_remote import RemoteTextToTextModel
-
 from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
 from pkg.ai.models.stt.stt_remote import RemoteSpeechToTextModel
+from pkg.ai.models.ttt.ttt_local import LocalTextToTextModel
+from pkg.ai.models.ttt.ttt_remote import RemoteTextToTextModel
 from pkg.config import (
     HF_API_TOKEN,
     STT_MODE,
@@ -18,7 +16,6 @@ from pkg.config import (
     TTT_MODEL_REMOTE,
     device,
 )
-
 
 
 # ===== Main Conversational Loop =====

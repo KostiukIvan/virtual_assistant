@@ -8,6 +8,7 @@ import requests
 
 # New import for remote TTS audio processing
 from scipy.io import wavfile
+
 from pkg.ai.models.tts.tts_interface import TextToSpeechModel
 from pkg.config import (
     TTS_MODEL_REMOTE,
@@ -63,4 +64,3 @@ class RemoteTextToSpeechModel(TextToSpeechModel):
             )  # Assume it's already in a compatible format if not int16
 
         return audio_float
-

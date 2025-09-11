@@ -1,21 +1,11 @@
 import os
 
-import numpy as np
 import requests
-import sounddevice as sd
-from transformers import Pipeline, pipeline
+
 from pkg.ai.models.ttt.ttt_interface import TextToTextModel
 from pkg.config import (
-    HF_API_TOKEN,
-    STT_MODE,
-    STT_MODEL_LOCAL,
-    STT_MODEL_REMOTE,
-    TTT_MODE,
-    TTT_MODEL_LOCAL,
     TTT_MODEL_REMOTE,
-    device,
 )
-
 
 
 # ===== Remote HuggingFace TTT (New Class) =====
@@ -68,6 +58,3 @@ class RemoteTextToTextModel(TextToTextModel):
         if isinstance(result, list) and result and "generated_text" in result[0]:
             return result[0]["generated_text"].strip()
         return "Error: Could not parse the API response."
-
-
-

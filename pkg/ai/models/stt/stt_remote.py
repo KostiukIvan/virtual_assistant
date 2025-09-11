@@ -4,14 +4,10 @@ import wave
 
 import numpy as np
 import requests
-import sounddevice as sd
-from transformers import pipeline
 
-from pkg.ai.models.aspd.aspd_detector import AdvancedSpeechPauseDetector
 from pkg.ai.models.stt.stt_interface import SpeechToTextModel
-from pkg.config import HF_API_TOKEN, STT_MODE, STT_MODEL_LOCAL, STT_MODEL_REMOTE, device
+from pkg.config import STT_MODEL_REMOTE
 from pkg.utils import float_to_pcm16
-
 
 
 # ===== Remote HuggingFace STT (New Class) =====
@@ -68,5 +64,3 @@ class RemoteSpeechToTextModel(SpeechToTextModel):
             return f"API Error: {result['error']}"
 
         return result.get("text", "No transcription available.")
-
-

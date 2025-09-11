@@ -2,9 +2,9 @@ import queue
 import time
 from typing import Any
 
-from pkg.ai.models.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
-from pkg.ai.models.tts_model import LocalTextToSpeechModel, RemoteTextToSpeechModel
-from pkg.ai.models.ttt_model import LocalTextToTextModel, RemoteTextToTextModel
+from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel, RemoteSpeechToTextModel
+from pkg.ai.models.tts.main import LocalTextToSpeechModel, RemoteTextToSpeechModel
+from pkg.ai.models.ttt.ttt_remote import LocalTextToTextModel, RemoteTextToTextModel
 from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
 from pkg.ai.streams.output.local.audio_producer import LocalAudioProducer
 from pkg.ai.streams.processor.aspd_stream_processor import (
@@ -165,8 +165,6 @@ class VirtualAssistant:
         self.components["speech_detector"] = AdvancedSpeechPauseDetectorStream(
             input_queue=self.queues["detector_input"],
             output_queue=self.queues["stt_input"],
-            long_pause_callback=lambda: (print("L"), self.components["tts_processor"].speak()),
-            short_pause_callback=self.config.get("short_pause_callback", lambda: None),
             sample_rate=self.config.get("sample_rate", 16000),
             frame_duration_ms=self.config.get("frame_duration_ms", 30),
             vad_level=self.config.get("vad_level", 3),
@@ -225,9 +223,6 @@ if __name__ == "__main__":
         "ttt_model_remote": TTT_MODEL_REMOTE,
         "tts_model_local": TTS_MODEL_LOCAL,
         "tts_model_remote": TTS_MODEL_REMOTE,
-        # Callbacks for advanced control (optional)
-        "long_pause_callback": lambda: print("L", end=""),
-        "short_pause_callback": lambda: print("S", end=""),
         "speak_callback": lambda is_speaking: print(
             f"[Playback Status: {'SPEAKING' if is_speaking else 'IDLE'}]",
         ),

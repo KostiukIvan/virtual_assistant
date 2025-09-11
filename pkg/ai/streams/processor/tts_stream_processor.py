@@ -5,10 +5,12 @@ import time
 
 import sounddevice as sd
 
-from pkg.ai.aec.mic_disabler_during_speech import AECWorker
-from pkg.ai.models.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
-from pkg.ai.models.tts_model import LocalTextToSpeechModel, RemoteTextToSpeechModel
-from pkg.ai.models.ttt_model import LocalTextToTextModel, RemoteTextToTextModel
+from pkg.ai.models.aec.mic_disabler_during_speech import AECWorker
+from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
+from pkg.ai.models.stt.stt_remote import RemoteSpeechToTextModel
+from pkg.ai.models.tts.main import LocalTextToSpeechModel, RemoteTextToSpeechModel
+from pkg.ai.models.ttt.ttt_remote import RemoteTextToTextModel
+from pkg.ai.models.ttt.ttt_local import LocalTextToTextModel
 from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
 from pkg.ai.streams.output.local.audio_producer import LocalAudioProducer
 from pkg.ai.streams.processor.aspd_stream_processor import (

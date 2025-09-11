@@ -1,7 +1,8 @@
 import queue
 import threading
 
-from pkg.ai.models.stt_model import LocalSpeechToTextModel, RemoteSpeechToTextModel
+from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
+from pkg.ai.models.stt.stt_remote import RemoteSpeechToTextModel
 from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
 from pkg.ai.streams.processor.aspd_stream_processor import (
     AdvancedSpeechPauseDetectorStream,

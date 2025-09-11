@@ -4,7 +4,7 @@ import threading
 
 import numpy as np
 
-from pkg.ai.models.aspd_detector import AdvancedSpeechPauseDetector
+from pkg.ai.models.aspd.aspd_detector import AdvancedSpeechPauseDetector
 from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
 
 

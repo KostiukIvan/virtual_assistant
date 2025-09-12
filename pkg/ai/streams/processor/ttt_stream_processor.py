@@ -88,8 +88,8 @@ class TextToTextStreamProcessor:
 
             except queue.Empty:
                 continue
-            except Exception:
-                pass
+            except Exception as e:
+                print("Error in TTT processing loop", str(e))
 
     def process_text(self) -> None:
         input_message = ""

@@ -1,7 +1,5 @@
 import asyncio
-import json
 import queue
-import time
 
 import numpy as np
 from fastapi import WebSocket
@@ -16,14 +14,14 @@ class RemoteAudioStreamProducer:
     def __init__(
         self,
         input_queue: queue.Queue,
-        playback_ref_queue: queue.Queue,
+        frame_duration_ms: int = 30,
         sample_rate: int = 16000,
         channels: int = 1,
         ws: WebSocket = None,
         dtype: str = "float32",
     ) -> None:
         self.input_queue = input_queue
-        self.playback_ref_queue = playback_ref_queue
+        self.frame_duration_ms = frame_duration_ms
         self.sample_rate = sample_rate
         self.channels = channels
         self.dtype = dtype
@@ -34,7 +32,7 @@ class RemoteAudioStreamProducer:
 
     async def _production_loop(self) -> None:
         try:
-            frame_size = int(self.sample_rate * 0.03) * self.channels  # 30 ms
+            frame_size = int(self.sample_rate * self.frame_duration_ms * self.channels / 1000)  # 30 ms
             leftover = np.array([], dtype=self.dtype)
             buffer = []
 
@@ -57,6 +55,7 @@ class RemoteAudioStreamProducer:
                     buffer.append(audio_chunk)
 
                 if event == "L" and buffer:
+                    # TODO: Think about to move this logic to CLIENT side
                     # Merge chunks + leftover
                     audio_chunk = np.concatenate([leftover] + buffer)
                     num_samples = len(audio_chunk)
@@ -66,11 +65,8 @@ class RemoteAudioStreamProducer:
                         frame = audio_chunk[cursor : cursor + frame_size]
                         cursor += frame_size
 
-                        # push to AEC reference
-                        self.playback_ref_queue.put_nowait((time.monotonic_ns(), frame.copy()))
-
                         # send to remote client
-                        await self.ws.send_text(json.dumps(frame.tolist()))
+                        await self.ws.send_text(frame.tobytes())
 
                     # keep tail for next cycle
                     leftover = audio_chunk[cursor:]

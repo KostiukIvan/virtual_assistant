@@ -7,19 +7,18 @@ import queue
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 # === Import your models ===
-from pkg.ai.models.aec.mic_disabler_during_speech import AECWorker
 from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
 from pkg.ai.models.tts.tts_local import LocalTextToSpeechModel
 from pkg.ai.models.ttt.ttt_local import LocalTextToTextModel
 from pkg.ai.streams.input.remote.remote_audio_consumer import RemoteAudioStreamConsumer
 from pkg.ai.streams.output.remote.remote_audio_producer import RemoteAudioStreamProducer
-from pkg.ai.streams.processor.aspd_stream_processor import AdvancedSpeechPauseDetectorStream
 from pkg.ai.streams.processor.stt_stream_processor import SpeechToTextStreamProcessor
 from pkg.ai.streams.processor.tts_stream_processor import TextToSpeechStreamProcessor
 from pkg.ai.streams.processor.ttt_stream_processor import TextToTextStreamProcessor
 from pkg.config import STT_MODEL_LOCAL, TTS_MODEL_LOCAL, TTT_MODEL_LOCAL, device
 
 app = FastAPI()
+# uvicorn pkg.ai.app:app --host 0.0.0.0 --port 8000 --reload
 
 
 @app.websocket("/stream")
@@ -29,16 +28,9 @@ async def stream_endpoint(ws: WebSocket):
 
     # ==== SETTINGS ====
     SAMPLE_RATE = 16000
-    FRAME_DURATION_MS = 30
-    FRAME_SAMPLES = int(SAMPLE_RATE * FRAME_DURATION_MS / 1000)
-    VAD_LEVEL = 3
-    SHORT_PAUSE_MS = 300
-    LONG_PAUSE_MS = 1000
+    FRAME_DURATION_MS = 60
 
     # ==== QUEUES ====
-    mic_raw_queue = queue.Queue(maxsize=200)
-    playback_ref_queue = queue.Queue(maxsize=200)
-    mic_clean_queue = queue.Queue(maxsize=200)
     playback_in_queue = queue.Queue(maxsize=200)
 
     STT_INPUT_QUEUE = queue.Queue()
@@ -51,32 +43,15 @@ async def stream_endpoint(ws: WebSocket):
     TTS_MODEL = LocalTextToSpeechModel(TTS_MODEL_LOCAL, device=device)
 
     # ==== COMPONENTS ====
-    audio_stream = RemoteAudioStreamConsumer(output_queue=mic_raw_queue, ws=ws)
+    audio_stream = RemoteAudioStreamConsumer(output_queue=STT_INPUT_QUEUE, ws=ws)
     audio_producer = RemoteAudioStreamProducer(
         input_queue=playback_in_queue,
-        playback_ref_queue=playback_ref_queue,
+        # playback_ref_queue=playback_ref_queue,
         sample_rate=SAMPLE_RATE,
+        frame_duration_ms=FRAME_DURATION_MS,
         channels=1,
         ws=ws,
         dtype="float32",
-    )
-
-    aec = AECWorker(
-        mic_queue=mic_raw_queue,
-        playback_ref_queue=playback_ref_queue,
-        output_queue=mic_clean_queue,
-        frame_size=FRAME_SAMPLES,
-        sample_rate=SAMPLE_RATE,
-    )
-
-    stream_detector = AdvancedSpeechPauseDetectorStream(
-        input_queue=mic_clean_queue,
-        output_queue=STT_INPUT_QUEUE,
-        sample_rate=SAMPLE_RATE,
-        frame_duration_ms=FRAME_DURATION_MS,
-        vad_level=VAD_LEVEL,
-        short_pause_ms=SHORT_PAUSE_MS,
-        long_pause_ms=LONG_PAUSE_MS,
     )
 
     stt_processor = SpeechToTextStreamProcessor(
@@ -99,8 +74,6 @@ async def stream_endpoint(ws: WebSocket):
     # ==== START ALL ====
     audio_stream.start()
     audio_producer.start()
-    aec.start()
-    stream_detector.start()
     stt_processor.start()
     ttt_processor.start()
     tts_processor.start()
@@ -126,8 +99,6 @@ async def stream_endpoint(ws: WebSocket):
             await audio_producer.stop()
 
         # threaded components
-        aec.stop()
-        stream_detector.stop()
         stt_processor.stop()
         ttt_processor.stop()
         tts_processor.stop()

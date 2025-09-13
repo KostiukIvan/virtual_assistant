@@ -1,15 +1,14 @@
 import asyncio
 import json
 import queue
-import time
 
 import numpy as np
 from fastapi import WebSocket
 
 
 class RemoteAudioStreamConsumer:
-    """Consumes audio frames from a WebSocket and pushes them into a queue.
-    Runs as a background asyncio Task with start/stop controls.
+    """Consumes audio frames and events from a WebSocket and pushes them into a queue.
+    Runs as an asyncio task with a synchronous output queue.
     """
 
     def __init__(self, output_queue: queue.Queue, ws: WebSocket, dtype: str = "float32") -> None:
@@ -21,16 +20,40 @@ class RemoteAudioStreamConsumer:
         self.task: asyncio.Task | None = None
 
     async def _ingestion_loop(self) -> None:
+        """
+        The main ingestion loop to be run as an asyncio task.
+        It handles WebSocket receive operations and places data into the sync queue.
+        """
         try:
+            current_buffer = []
             while self.is_running:
-                msg = await self.ws.receive_text()
-                frame = json.loads(msg)
-                frame = np.array(frame, dtype=self.dtype)
-                self.output_queue.put((time.monotonic_ns(), frame.copy()))
+                message = await self.ws.receive()
+                if message["type"] == "websocket.receive":
+                    if "bytes" in message:
+                        # Handle binary data (audio frames)
+                        data = message["bytes"]
+                        frames = np.frombuffer(data, dtype=self.dtype)
+                        current_buffer.extend(frames.flatten())
+                    elif "text" in message:
+                        # Handle text data (JSON event)
+                        message_text = message["text"]
+                        event_data = json.loads(message_text)
+                        event = event_data.get("event")
+                        if event in "s":
+                            if current_buffer:
+                                self.output_queue.put(
+                                    {"data": np.array(current_buffer, dtype=np.float32), "event": "s"}
+                                )
+                                current_buffer = []
+                        if event in "L":
+                            self.output_queue.put({"data": None, "event": "L"})
+
+                        print(f"[RemoteAudioStreamConsumer] Received event: {event}")
+
         except asyncio.CancelledError:
-            print("[RemoteAudioStreamConsumer] Cancelled")
+            print("[RemoteAudioStreamConsumer] Ingestion loop cancelled.")
         except Exception as e:
-            print("[RemoteAudioStreamConsumer] Error:", e)
+            print(f"[RemoteAudioStreamConsumer] Ingestion loop error: {e}")
 
     def start(self) -> None:
         if self.is_running:

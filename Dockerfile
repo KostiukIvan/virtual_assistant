@@ -1,9 +1,9 @@
 FROM python:3.12-slim
 
+# Create cache directory with proper permissions
+RUN mkdir -p /app/cache && chmod -R 777 /app/cache
 ENV HF_HOME=/app/cache
 ENV TRANSFORMERS_CACHE=/app/cache
-RUN mkdir -p /app/cache
-
 
 # Install system deps (runtime + build)
 RUN apt-get update && apt-get install -y \
@@ -25,4 +25,4 @@ WORKDIR /app
 
 # Expose port for HF Space
 ENV PORT=7860
-CMD uvicorn pkg.ai.app:app --host 0.0.0.0 --port $PORT
+CMD ["uvicorn", "pkg.ai.app:app", "--host", "0.0.0.0", "--port", "7860"]

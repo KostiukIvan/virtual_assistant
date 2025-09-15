@@ -23,6 +23,9 @@ app = FastAPI()
 # For Hugging Face Spaces:
 # uvicorn app:app --host 0.0.0.0 --port $PORT
 
+@app.get("/")
+async def root():
+    return {"status": "ok", "message": "Voice Assistant WebSocket is running. Connect to /stream"}
 
 @app.websocket("/stream")
 async def stream_endpoint(ws: WebSocket):

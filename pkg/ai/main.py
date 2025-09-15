@@ -2,16 +2,17 @@ import queue
 import time
 
 from pkg.ai.models.aec.mic_disabler_during_speech import AECWorker
-from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
-from pkg.ai.models.stt.stt_remote import RemoteSpeechToTextModel
-from pkg.ai.models.tts.main import LocalTextToSpeechModel, RemoteTextToSpeechModel
-from pkg.ai.models.ttt.ttt_local import LocalTextToTextModel
-from pkg.ai.models.ttt.ttt_remote import RemoteTextToTextModel
 from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
 from pkg.ai.streams.output.local.audio_producer import LocalAudioProducer
 from pkg.ai.streams.processor.aspd_stream_processor import (
     AdvancedSpeechPauseDetectorStream,
 )
+
+from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
+from pkg.ai.models.stt.stt_remote import RemoteSpeechToTextModel
+from pkg.ai.models.tts.main import LocalTextToSpeechModel, RemoteTextToSpeechModel
+from pkg.ai.models.ttt.ttt_local import LocalTextToTextModel
+from pkg.ai.models.ttt.ttt_remote import RemoteTextToTextModel
 from pkg.ai.streams.processor.stt_stream_processor import SpeechToTextStreamProcessor
 from pkg.ai.streams.processor.tts_stream_processor import TextToSpeechStreamProcessor
 from pkg.ai.streams.processor.ttt_stream_processor import TextToTextStreamProcessor
@@ -70,16 +71,11 @@ if __name__ == "__main__":
     # Audio in/out
     audio_stream = LocalAudioStream(
         output_queue=mic_raw_queue,
-        sample_rate=SAMPLE_RATE,
-        frame_duration_ms=FRAME_DURATION_MS,
     )
 
     audio_producer = LocalAudioProducer(
         input_queue=playback_in_queue,
         playback_ref_queue=playback_ref_queue,
-        sample_rate=SAMPLE_RATE,
-        channels=1,
-        dtype="float32",
     )
 
     # Acoustic Echo Canceller
@@ -87,21 +83,12 @@ if __name__ == "__main__":
         mic_queue=mic_raw_queue,
         playback_ref_queue=playback_ref_queue,
         output_queue=mic_clean_queue,
-        frame_size=FRAME_SAMPLES,
-        # filter_length=FRAME_SAMPLES*20,
-        sample_rate=SAMPLE_RATE,
-        # max_buffer_ms=500,
     )
 
     # Pause detector (takes CLEAN mic frames after AEC)
     stream_detector = AdvancedSpeechPauseDetectorStream(
         input_queue=mic_clean_queue,
         output_queue=STT_INPUT_QUEUE,
-        sample_rate=SAMPLE_RATE,
-        frame_duration_ms=FRAME_DURATION_MS,
-        vad_level=VAD_LEVEL,
-        short_pause_ms=SHORT_PAUSE_MS,
-        long_pause_ms=LONG_PAUSE_MS,
     )
 
     # STT → TTT → TTS processors
@@ -109,7 +96,6 @@ if __name__ == "__main__":
         stt_model=STT_MODEL,
         input_stream_queue=STT_INPUT_QUEUE,
         output_stream_queue=TTT_INPUT_QUEUE,
-        sample_rate=SAMPLE_RATE,
     )
     ttt_processor = TextToTextStreamProcessor(
         ttt_model=TTT_MODEL,

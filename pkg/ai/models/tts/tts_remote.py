@@ -20,10 +20,9 @@ class RemoteTextToSpeechModel(TextToSpeechModel):
     def __init__(
         self,
         model: str = TTS_MODEL_REMOTE,
-        sample_rate: int = 22050,
         hf_token: str | None = None,
     ) -> None:
-        super().__init__(model, sample_rate)
+        super().__init__(model)
         self.hf_token = hf_token or os.getenv("HF_TOKEN")
         if not self.hf_token:
             msg = "Hugging Face API token not provided."
@@ -53,7 +52,6 @@ class RemoteTextToSpeechModel(TextToSpeechModel):
 
         # Use scipy to read the in-memory WAV file and get the sample rate and data
         rate, data = wavfile.read(io.BytesIO(audio_bytes))
-        self.sample_rate = rate  # Update sample rate to the actual rate from the audio file
 
         # Convert audio data from integer to float format for playback
         if data.dtype == np.int16:

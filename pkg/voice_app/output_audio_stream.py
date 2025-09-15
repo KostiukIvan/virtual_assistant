@@ -2,49 +2,49 @@ import asyncio
 
 import sounddevice as sd
 
+import pkg.config as config
+
 
 class LocalAudioProducer:
-    """A worker that plays audio frames from an async queue to the speakers."""
+    """Async worker that plays audio frames from an async queue to the speakers."""
 
-    def __init__(
-        self,
-        input_queue: asyncio.Queue,
-        sample_rate: int = 16000,
-        channels: int = 1,
-        dtype: str = "float32",
-    ):
+    def __init__(self, input_queue: asyncio.Queue):
         self.input_queue = input_queue
-        self.sample_rate = sample_rate
-        self.channels = channels
-        self.dtype = dtype
-        self.task = None
-        self.running = False
+        self.task: asyncio.Task | None = None
 
     async def _loop(self):
-        frame_size = int(self.sample_rate * 0.03) * self.channels
-        with sd.OutputStream(
-            samplerate=self.sample_rate,
-            channels=self.channels,
-            dtype=self.dtype,
-            blocksize=frame_size // self.channels,
-        ) as stream:
-            while self.running:
-                frame = await self.input_queue.get()
-                if frame is None:
-                    continue
-                stream.write(frame)
+        try:
+            with sd.OutputStream(
+                samplerate=config.AUDIO_SAMPLE_RATE,
+                channels=config.AUDIO_CHANNELS,
+                dtype=config.AUDIO_DTYPE,
+                blocksize=config.AUDIO_FRAME_SAMPLES,
+            ) as stream:
+                while True:
+                    frame = await self.input_queue.get()
+
+                    if frame is None:
+                        continue
+
+                    try:
+                        stream.write(frame)
+                    except Exception as e:
+                        print(f"[LocalAudioProducer] Stream write error: {e}")
+        except asyncio.CancelledError:
+            print("[LocalAudioProducer] Playback loop cancelled.")
+            raise
 
     def start(self):
-        self.running = True
-        self.task = asyncio.create_task(self._loop())
-        print("LocalAudioProducer started.")
+        if self.task is None:
+            self.task = asyncio.create_task(self._loop())
+            print("LocalAudioProducer started.")
 
     async def stop(self):
-        self.running = False
         if self.task:
             self.task.cancel()
             try:
                 await self.task
             except asyncio.CancelledError:
                 pass
+            self.task = None
         print("LocalAudioProducer stopped.")

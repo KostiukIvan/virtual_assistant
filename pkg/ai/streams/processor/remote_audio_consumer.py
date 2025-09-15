@@ -5,16 +5,17 @@ import queue
 import numpy as np
 from fastapi import WebSocket
 
+import pkg.config as config
+
 
 class RemoteAudioStreamConsumer:
     """Consumes audio frames and events from a WebSocket and pushes them into a queue.
     Runs as an asyncio task with a synchronous output queue.
     """
 
-    def __init__(self, output_queue: queue.Queue, ws: WebSocket, dtype: str = "float32") -> None:
+    def __init__(self, output_queue: queue.Queue, ws: WebSocket) -> None:
         self.output_queue = output_queue
         self.ws = ws
-        self.dtype = dtype
 
         self.is_running = False
         self.task: asyncio.Task | None = None
@@ -32,7 +33,7 @@ class RemoteAudioStreamConsumer:
                     if "bytes" in message:
                         # Handle binary data (audio frames)
                         data = message["bytes"]
-                        frames = np.frombuffer(data, dtype=self.dtype)
+                        frames = np.frombuffer(data, dtype=config.AUDIO_DTYPE)
                         current_buffer.extend(frames.flatten())
                     elif "text" in message:
                         # Handle text data (JSON event)
@@ -42,7 +43,7 @@ class RemoteAudioStreamConsumer:
                         if event in "s":
                             if current_buffer:
                                 self.output_queue.put(
-                                    {"data": np.array(current_buffer, dtype=np.float32), "event": "s"}
+                                    {"data": np.array(current_buffer, dtype=config.AUDIO_DTYPE), "event": "s"}
                                 )
                                 current_buffer = []
                         if event in "L":

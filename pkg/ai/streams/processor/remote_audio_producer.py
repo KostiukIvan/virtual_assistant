@@ -4,6 +4,8 @@ import queue
 import numpy as np
 from fastapi import WebSocket
 
+import pkg.config as config
+
 
 class RemoteAudioStreamProducer:
     """Consumes audio frames from an input queue and streams them to the WebSocket.
@@ -14,17 +16,9 @@ class RemoteAudioStreamProducer:
     def __init__(
         self,
         input_queue: queue.Queue,
-        frame_duration_ms: int = 30,
-        sample_rate: int = 16000,
-        channels: int = 1,
         ws: WebSocket = None,
-        dtype: str = "float32",
     ) -> None:
         self.input_queue = input_queue
-        self.frame_duration_ms = frame_duration_ms
-        self.sample_rate = sample_rate
-        self.channels = channels
-        self.dtype = dtype
         self.ws = ws
 
         self.is_running = False
@@ -32,8 +26,7 @@ class RemoteAudioStreamProducer:
 
     async def _production_loop(self) -> None:
         try:
-            frame_size = int(self.sample_rate * self.frame_duration_ms * self.channels / 1000)  # 30 ms
-            leftover = np.array([], dtype=self.dtype)
+            leftover = np.array([], dtype=config.AUDIO_DTYPE)
             buffer = []
 
             print("RemoteAudioStreamProducer loop started")
@@ -61,9 +54,9 @@ class RemoteAudioStreamProducer:
                     num_samples = len(audio_chunk)
                     cursor = 0
 
-                    while cursor + frame_size <= num_samples:
-                        frame = audio_chunk[cursor : cursor + frame_size]
-                        cursor += frame_size
+                    while cursor + config.AUDIO_FRAME_SAMPLES <= num_samples:
+                        frame = audio_chunk[cursor : cursor + config.AUDIO_FRAME_SAMPLES]
+                        cursor += config.AUDIO_FRAME_SAMPLES
 
                         # send to remote client
                         await self.ws.send_text(frame.tobytes())

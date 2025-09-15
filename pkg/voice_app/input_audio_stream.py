@@ -1,8 +1,9 @@
 import asyncio
 import sys
-import time
 
 import sounddevice as sd
+
+import pkg.config as config
 
 
 class LocalAudioStream:
@@ -11,16 +12,8 @@ class LocalAudioStream:
     def __init__(
         self,
         output_queue: asyncio.Queue,
-        sample_rate=16000,
-        frame_duration_ms=30,
-        channels=1,
-        dtype="float32",
     ):
         self.output_queue = output_queue
-        self.sample_rate = sample_rate
-        self.channels = channels
-        self.dtype = dtype
-        self.frame_samples = int(sample_rate * frame_duration_ms / 1000)
         self.stream = None
         self.loop = None
 
@@ -30,14 +23,16 @@ class LocalAudioStream:
         def callback(indata, frames, callback_time, status):
             if status:
                 print(f"[LocalAudioStream] Status: {status}", file=sys.stderr)
-            # This is the crucial part: use threadsafe to put data into the queue from the callback.
-            self.loop.call_soon_threadsafe(self.output_queue.put_nowait, (time.monotonic_ns(), indata.copy()))
+            try:
+                self.loop.call_soon_threadsafe(self.output_queue.put_nowait, indata.copy())
+            except Exception as e:
+                print(f"[LocalAudioStream] Callback error: {e}", file=sys.stderr)
 
         self.stream = sd.InputStream(
-            channels=self.channels,
-            samplerate=self.sample_rate,
-            dtype=self.dtype,
-            blocksize=self.frame_samples,
+            channels=config.AUDIO_CHANNELS,
+            samplerate=config.AUDIO_SAMPLE_RATE,
+            dtype=config.AUDIO_DTYPE,
+            blocksize=config.AUDIO_FRAME_SAMPLES,
             callback=callback,
         )
         self.stream.start()

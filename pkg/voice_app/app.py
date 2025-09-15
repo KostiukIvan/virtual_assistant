@@ -1,21 +1,35 @@
 import asyncio
 import json
-import time
 
 import numpy as np
 import websockets
 
+import pkg.config as config
 from pkg.voice_app.aec_worker import AECWorker
 from pkg.voice_app.aspd_worker import AdvancedSpeechPauseDetectorAsyncStream
 from pkg.voice_app.input_audio_stream import LocalAudioStream
 from pkg.voice_app.output_audio_stream import LocalAudioProducer
 
 """
-[ Local Mic ] -----> [ LocalAudioStream ] ---<raw frame>--> [ AEC ] ---<cleaned frame>--> [ ASPD ] ---<frames, event>---> | WebSocket |-------------
-                                                                ^                                                                                   |  
+[ Local Mic ] -----> [ LocalAudioStream ] ---<raw frame>--> [ AEC ] ---<cleaned frame>--> [ ASPD ] ---<frame or event>----> | WebSocket |--------------
+                                                                ^                                                                                    |  
+                                                                |                                                                                    |   
                                                                 ------------<dup frame>----------                                        [ Remote STT/TTT/TTS ]            
-                                                                                                |                                                    |                 
+                                                                                                |                                                    |
+                                                                                                |                                                    |                     
 [ Local Speaker ] <------------------------<original frame>-------------------------- [ LocalAudioProducer ] <-------------| WebSocket |<-------------
+
+"""
+
+"""
+    | WebSocket | -------> [ RemoteAudioStreamConsumer ] ---<List of frames, event>--> [ STT Stream Processor ] ---<text, event>--> [ Text Queue ]
+    
+    
+    
+    
+    | WebSocket | <------- [ RemoteAudioStreamProducer ] <---<List of frames, event>--- [ TTS Stream Processor ] <---<text, event>--- [ Text Queue ]
+
+
 
 """
 
@@ -25,11 +39,15 @@ HF_WS_URL = "ws://127.0.0.1:8000/stream"
 
 
 async def voice_client(
-    stt_input_queue: asyncio.Queue, playback_queue: asyncio.Queue, playback_ref_queue: asyncio.Queue
+    stt_input_queue: asyncio.Queue,
+    playback_queue: asyncio.Queue,
+    playback_ref_queue: asyncio.Queue,
+    start_workers_fn: callable = None,
 ):
 
     async with websockets.connect(HF_WS_URL) as ws:
         print("Connected to WebSocket Voice API")
+        start_workers_fn()
 
         # Sender coroutine: sends mic audio to the server
         async def sender():
@@ -59,9 +77,9 @@ async def voice_client(
             try:
                 async for msg in ws:
                     # The server sends back audio data to be played
-                    frame = np.frombuffer(msg, dtype="float32")
+                    frame = np.frombuffer(msg, dtype=config.AUDIO_DTYPE)
                     await playback_queue.put(frame)
-                    await playback_ref_queue.put((time.monotonic_ns(), frame))  # for AEC
+                    await playback_ref_queue.put(frame)  # for AEC
 
             except asyncio.CancelledError:
                 print("Receiver task was cancelled.")
@@ -72,15 +90,19 @@ async def voice_client(
         await asyncio.gather(sender(), receiver())
 
 
+def start_workers(
+    audio_stream: LocalAudioStream,
+    audio_producer: LocalAudioProducer,
+    aec: AECWorker,
+    stream_detector: AdvancedSpeechPauseDetectorAsyncStream,
+):
+    audio_stream.start()
+    audio_producer.start()
+    aec.start()
+    stream_detector.start()
+
+
 async def main():
-
-    SAMPLE_RATE = 16000
-    FRAME_DURATION_MS = 30
-    FRAME_SAMPLES = int(SAMPLE_RATE * FRAME_DURATION_MS / 1000)
-    VAD_LEVEL = 3
-    SHORT_PAUSE_MS = 300
-    LONG_PAUSE_MS = 1000
-
     mic_raw_queue = asyncio.Queue()
     mic_cleaned_queue = asyncio.Queue()
     playback_ref_queue = asyncio.Queue()
@@ -93,26 +115,19 @@ async def main():
         mic_queue=mic_raw_queue,
         playback_ref_queue=playback_ref_queue,
         output_queue=mic_cleaned_queue,
-        frame_size=FRAME_SAMPLES,
-        sample_rate=SAMPLE_RATE,
     )
     stream_detector = AdvancedSpeechPauseDetectorAsyncStream(
         input_queue=mic_cleaned_queue,
         output_queue=stt_input_queue,
-        sample_rate=SAMPLE_RATE,
-        frame_duration_ms=FRAME_DURATION_MS,
-        vad_level=VAD_LEVEL,
-        short_pause_ms=SHORT_PAUSE_MS,
-        long_pause_ms=LONG_PAUSE_MS,
     )
 
-    audio_stream.start()
-    audio_producer.start()
-    aec.start()
-    stream_detector.start()
-
     try:
-        await voice_client(stt_input_queue, playback_queue, playback_ref_queue)
+        await voice_client(
+            stt_input_queue,
+            playback_queue,
+            playback_ref_queue,
+            start_workers_fn=lambda: start_workers(audio_stream, audio_producer, aec, stream_detector),
+        )
     except asyncio.CancelledError:
         pass
     finally:

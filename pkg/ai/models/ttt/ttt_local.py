@@ -1,31 +1,27 @@
 from transformers import AutoTokenizer, Pipeline, pipeline
 
+import pkg.config as config
 from pkg.ai.models.ttt.memory_managers.rag.knowledge_base import KnowledgeBase
 from pkg.ai.models.ttt.memory_managers.rag.rag_assisstant import RAGAssistant
 from pkg.ai.models.ttt.memory_managers.sliding_window_memory_manager import MemoryManager
 from pkg.ai.models.ttt.ttt_interface import TextToTextModel
-from pkg.config import (
-    TTT_MODEL_LOCAL,
-)
 
 
 class LocalTextToTextModel(TextToTextModel):
     def __init__(
         self,
-        model: str = TTT_MODEL_LOCAL,
-        device: int = 0,
-        max_length: int = 256,
-        num_return_sequences: int = 1,
-        memory_size: int = 10,
+        model: str = config.TTT_MODEL_LOCAL,
     ):
-        super().__init__(model, device)
-        self.max_length = max_length
-        self.num_return_sequences = num_return_sequences
-        self.memory_size = memory_size
+        super().__init__(model, config.DEVICE_CUDA_OR_CPU)
+        self.max_length = config.TTT_MAX_TOKENS
+        self.num_return_sequences = config.TTT_NUM_RETURN_SEQUENCES
+        self.memory_size = config.TTT_MEMORY_SIZE
         self.generator: Pipeline | None = None
 
         # memory
-        self.memory = MemoryManager(window_size=6, summarize_every=20)
+        self.memory = MemoryManager(
+            window_size=config.TTT_MEMORY_MANAGER_WINDOW_SIZE, summarize_every=config.TTT_MEMORY_MANAGER_SUMMARY_EVERY
+        )
 
         # knowledge base + RAG
         self.kb = KnowledgeBase()

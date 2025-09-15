@@ -1,79 +1,62 @@
 import numpy as np
 import sounddevice as sd
 
-from pkg.ai.models.aspd.aspd_detector import AdvancedSpeechPauseDetector
+import pkg.config as config
 from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
 from pkg.ai.models.stt.stt_remote import RemoteSpeechToTextModel
 from pkg.ai.models.ttt.ttt_local import LocalTextToTextModel
 from pkg.ai.models.ttt.ttt_remote import RemoteTextToTextModel
-from pkg.config import (
-    HF_API_TOKEN,
-    STT_MODE,
-    STT_MODEL_LOCAL,
-    STT_MODEL_REMOTE,
-    TTT_MODE,
-    TTT_MODEL_LOCAL,
-    TTT_MODEL_REMOTE,
-    device,
-)
-
 
 # ===== Main Conversational Loop =====
+
+
 def main() -> None:
-    sample_rate = 16000
-    frame_duration = 30  # ms
-    frame_samples = int(sample_rate * frame_duration / 1000)
-
-    detector = AdvancedSpeechPauseDetector(
-        sample_rate=sample_rate,
-        frame_duration_ms=frame_duration,
-        vad_level=3,
-        short_pause_ms=250,
-        long_pause_ms=1000,
-    )
-
-    # Initialize Speech-to-Text model based on config
-    if STT_MODE == "local":
-        stt = LocalSpeechToTextModel(model=STT_MODEL_LOCAL, device=device)
+    # Initialize STT
+    if config.STT_MODE == "local":
+        stt = LocalSpeechToTextModel(model=config.STT_MODEL_LOCAL)
     else:
         stt = RemoteSpeechToTextModel(
-            model_name=STT_MODEL_REMOTE,
-            hf_token=HF_API_TOKEN,
+            model_name=config.STT_MODEL_REMOTE,
+            hf_token=config.HF_API_TOKEN,
         )
 
-    # Initialize Text-to-Text model based on config
-    if TTT_MODE == "local":
-        ttt = LocalTextToTextModel(model=TTT_MODEL_LOCAL, device=device)
+    # Initialize TTT
+    if config.TTT_MODE == "local":
+        ttt = LocalTextToTextModel(model=config.TTT_MODEL_LOCAL)
     else:
-        ttt = RemoteTextToTextModel(model=TTT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
+        ttt = RemoteTextToTextModel(
+            model=config.TTT_MODEL_REMOTE,
+            hf_token=config.HF_API_TOKEN,
+        )
 
     buffer = []
-    recording = False
+    FRAME_SAMPLES = config.AUDIO_FRAME_SAMPLES
+    SAMPLE_RATE = config.AUDIO_SAMPLE_RATE
 
-    with sd.InputStream(channels=1, samplerate=sample_rate, dtype="float32") as stream:
+    # target: ~1 sec audio per STT call
+    CHUNK_SIZE = SAMPLE_RATE
+
+    with sd.InputStream(
+        channels=config.AUDIO_CHANNELS,
+        samplerate=SAMPLE_RATE,
+        dtype=config.AUDIO_DTYPE,
+        blocksize=FRAME_SAMPLES,
+    ) as stream:
+        print("Listening... (Ctrl+C to stop)")
         while True:
-            audio_float, _ = stream.read(frame_samples)
-            audio_chunk = audio_float.flatten()
+            audio_float, _ = stream.read(FRAME_SAMPLES)
+            buffer.extend(audio_float.flatten())
 
-            if detector.is_speech(audio_chunk):
-                if not recording:
-                    pass
-                buffer.extend(audio_chunk)
-                recording = True
-            elif recording and len(buffer) > 5000:
+            if len(buffer) >= CHUNK_SIZE:
                 audio_np = np.array(buffer, dtype=np.float32)
-                text = stt.audio_to_text(audio_np, sample_rate=sample_rate)
+                buffer = []  # reset buffer
 
-                if text and text.strip() and len(text.strip()) > 1:
-                    ttt.text_to_text(text)
-                else:
-                    pass
-
-                buffer = []
-                recording = False
-            elif recording:
-                buffer = []
-                recording = False
+                # Run STT
+                text = stt.audio_to_text(audio_np, sample_rate=SAMPLE_RATE)
+                if text and text.strip():
+                    print(f"User: {text}")
+                    reply = ttt.text_to_text(text)
+                    print(f"Bot: {reply}")
 
 
 if __name__ == "__main__":

@@ -3,8 +3,7 @@ import numpy as np
 # New imports for remote models
 import sounddevice as sd
 
-# New import for remote TTS audio processing
-from pkg.ai.models.aspd.aspd_detector import AdvancedSpeechPauseDetector
+import pkg.config as config
 
 # Assume these classes are defined in their respective files as before
 from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
@@ -13,82 +12,68 @@ from pkg.ai.models.tts.tts_local import LocalTextToSpeechModel
 from pkg.ai.models.tts.tts_remote import RemoteTextToSpeechModel
 from pkg.ai.models.ttt.ttt_local import LocalTextToTextModel
 from pkg.ai.models.ttt.ttt_remote import RemoteTextToTextModel
-from pkg.config import (
-    HF_API_TOKEN,
-    STT_MODE,
-    STT_MODEL_LOCAL,
-    STT_MODEL_REMOTE,
-    TTS_MODE,
-    TTS_MODEL_LOCAL,
-    TTS_MODEL_REMOTE,
-    TTT_MODE,
-    TTT_MODEL_LOCAL,
-    TTT_MODEL_REMOTE,
-    device,
-)
 
 
 # ===== Main Conversational Loop =====
 def main() -> None:
-    sample_rate = 16000
-    frame_duration = 30
-    frame_samples = int(sample_rate * frame_duration / 1000)
-
-    detector = AdvancedSpeechPauseDetector(
-        sample_rate=sample_rate,
-        frame_duration_ms=frame_duration,
-        vad_level=3,
-        short_pause_ms=250,
-        long_pause_ms=1000,
-    )
-
+    # Init models
     stt = (
-        LocalSpeechToTextModel(STT_MODEL_LOCAL, device=device)
-        if STT_MODE == "local"
-        else RemoteSpeechToTextModel(STT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
+        LocalSpeechToTextModel(config.STT_MODEL_LOCAL)  # drop device if not supported
+        if config.STT_MODE == "local"
+        else RemoteSpeechToTextModel(config.STT_MODEL_REMOTE, hf_token=config.HF_API_TOKEN)
     )
 
     ttt = (
-        LocalTextToTextModel(TTT_MODEL_LOCAL, device=device)
-        if TTT_MODE == "local"
-        else RemoteTextToTextModel(TTT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
+        LocalTextToTextModel(config.TTT_MODEL_LOCAL)
+        if config.TTT_MODE == "local"
+        else RemoteTextToTextModel(config.TTT_MODEL_REMOTE, hf_token=config.HF_API_TOKEN)
     )
 
     tts = (
-        LocalTextToSpeechModel(TTS_MODEL_LOCAL, device=device)
-        if TTS_MODE == "local"
-        else RemoteTextToSpeechModel(TTS_MODEL_REMOTE, hf_token=HF_API_TOKEN)
+        LocalTextToSpeechModel(config.TTS_MODEL_LOCAL)
+        if config.TTS_MODE == "local"
+        else RemoteTextToSpeechModel(config.TTS_MODEL_REMOTE, hf_token=config.HF_API_TOKEN)
     )
 
     buffer = []
-    recording = False
+    FRAME_SAMPLES = config.AUDIO_FRAME_SAMPLES
+    SAMPLE_RATE = config.AUDIO_SAMPLE_RATE
+    CHUNK_SIZE = SAMPLE_RATE  # ~1s of audio
 
-    with sd.InputStream(channels=1, samplerate=sample_rate, dtype="float32") as stream:
+    with sd.InputStream(
+        channels=config.AUDIO_CHANNELS,
+        samplerate=SAMPLE_RATE,
+        dtype=config.AUDIO_DTYPE,
+        blocksize=FRAME_SAMPLES,
+    ) as stream:
+        print("Listening... (Ctrl+C to stop)")
         while True:
-            audio_chunk, _ = stream.read(frame_samples)
-            if detector.is_speech(audio_chunk.flatten()):
-                if not recording:
-                    pass
-                buffer.extend(audio_chunk.flatten())
-                recording = True
-            elif recording and len(buffer) > 5000:
+            audio_chunk, _ = stream.read(FRAME_SAMPLES)
+            buffer.extend(audio_chunk.flatten())
+
+            if len(buffer) >= CHUNK_SIZE:
                 audio_np = np.array(buffer, dtype=np.float32)
-                text = stt.audio_to_text(audio_np, sample_rate)
+                buffer = []  # reset buffer
 
-                if text and text.strip() and len(text.strip()) > 1:
-                    reply = ttt.text_to_text(text)
+                # STT
+                text = stt.audio_to_text(audio_np, SAMPLE_RATE)
+                if not text or len(text.strip()) < 2:
+                    continue
 
-                    audio_reply = tts.text_to_speech(reply)
-                    sd.play(audio_reply, samplerate=tts.sample_rate)
-                    sd.wait()
-                else:
-                    pass
+                print(f"User: {text}")
 
-                buffer = []
-                recording = False
-            elif recording:  # Reset if speech was too short
-                buffer = []
-                recording = False
+                # TTT
+                reply = ttt.text_to_text(text)
+                print(f"Bot: {reply}")
+
+                # TTS
+                audio_reply = tts.text_to_speech(reply)
+
+                # Pause mic while speaking (avoid echo capture)
+                stream.stop()
+                sd.play(audio_reply, samplerate=SAMPLE_RATE)
+                sd.wait()
+                stream.start()
 
 
 if __name__ == "__main__":

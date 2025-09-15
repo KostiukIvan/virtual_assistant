@@ -1,26 +1,6 @@
 import queue
 import threading
 
-from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
-from pkg.ai.models.stt.stt_remote import RemoteSpeechToTextModel
-from pkg.ai.models.ttt.ttt_local import LocalTextToTextModel
-from pkg.ai.models.ttt.ttt_remote import RemoteTextToTextModel
-from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
-from pkg.ai.streams.processor.aspd_stream_processor import (
-    AdvancedSpeechPauseDetectorStream,
-)
-from pkg.ai.streams.processor.stt_stream_processor import SpeechToTextStreamProcessor
-from pkg.config import (
-    HF_API_TOKEN,
-    STT_MODE,
-    STT_MODEL_LOCAL,
-    STT_MODEL_REMOTE,
-    TTT_MODE,
-    TTT_MODEL_LOCAL,
-    TTT_MODEL_REMOTE,
-    device,
-)
-
 
 class TextToTextStreamProcessor:
     """Consumes text from an input queue, processes it with a text-to-text model,
@@ -109,79 +89,3 @@ class TextToTextStreamProcessor:
 
         # Put the final response into the output queue
         self.output_stream_queue.put(bot_response)
-
-
-if __name__ == "__main__":
-    # 1. Initialize the core components and both queues
-    SAMPLE_RATE = 16000
-    FRAME_DURATION_MS = 30
-    VAD_LEVEL = 3
-    SHORT_PAUSE_MS = 300
-    LONG_PAUSE_MS = 1000
-    STREAM_DETECTOR_INPUT_QUEUE = queue.Queue()
-    STT_INPUT_QUEUE = queue.Queue()
-    TTT_INPUT_QUEUE = queue.Queue()
-    TTS_INPUT_QUEUE = queue.Queue()
-
-    audio_stream = LocalAudioStream(output_queue=STREAM_DETECTOR_INPUT_QUEUE)
-    # 3. Start capturing audio
-
-    stream_detector = AdvancedSpeechPauseDetectorStream(
-        input_queue=STREAM_DETECTOR_INPUT_QUEUE,
-        output_queue=STT_INPUT_QUEUE,
-        sample_rate=SAMPLE_RATE,
-        frame_duration_ms=FRAME_DURATION_MS,
-        vad_level=VAD_LEVEL,
-        short_pause_ms=SHORT_PAUSE_MS,
-        long_pause_ms=LONG_PAUSE_MS,
-    )
-
-    STT_MODEL = (
-        LocalSpeechToTextModel(STT_MODEL_LOCAL, device=device)
-        if STT_MODE == "local"
-        else RemoteSpeechToTextModel(STT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
-    )
-
-    TTT_MODEL = (
-        LocalTextToTextModel(TTT_MODEL_LOCAL, device=device)
-        if TTT_MODE == "local"
-        else RemoteTextToTextModel(TTT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
-    )
-
-    # 2. Initialize the STT Processor
-    stt_processor = SpeechToTextStreamProcessor(
-        stt_model=STT_MODEL,
-        input_stream_queue=STT_INPUT_QUEUE,
-        output_stream_queue=TTT_INPUT_QUEUE,
-        sample_rate=SAMPLE_RATE,
-    )
-
-    # 3. Initialize the new TTT Processor
-    ttt_processor = TextToTextStreamProcessor(
-        ttt_model=TTT_MODEL,
-        input_stream_queue=TTT_INPUT_QUEUE,  # Takes input from the user text queue
-        output_stream_queue=TTS_INPUT_QUEUE,  # Outputs to the final response queue
-    )
-
-    # 5. Start all threaded components
-    audio_stream.start()
-    stream_detector.start()
-    stt_processor.start()
-    ttt_processor.start()
-
-    try:
-        # The main thread now listens for the final bot response
-        while True:
-            try:
-                data = TTS_INPUT_QUEUE.get(timeout=1.0)
-                bot_reply = data["data"]
-            except queue.Empty:
-                continue
-    except KeyboardInterrupt:
-        pass
-    finally:
-        # 6. Stop all components gracefully
-        audio_stream.stop()
-        stream_detector.stop()
-        stt_processor.stop()
-        ttt_processor.stop()

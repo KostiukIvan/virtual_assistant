@@ -33,7 +33,7 @@ class RemoteSpeechToTextModel(SpeechToTextModel):
             "Content-Type": "audio/wav",
         }
 
-    def audio_to_text(self, buffer: np.ndarray, sample_rate: int = 16000) -> str:
+    def audio_to_text(self, buffer: np.ndarray, sample_rate: int) -> str:
         """buffer: numpy array of PCM float32 [-1,1]
         sample_rate: must match model's expected sample rate.
         """

@@ -2,17 +2,15 @@ import os
 
 import requests
 
+import pkg.config as config
 from pkg.ai.models.ttt.ttt_interface import TextToTextModel
-from pkg.config import (
-    TTT_MODEL_REMOTE,
-)
 
 
 # ===== Remote HuggingFace TTT (New Class) =====
 class RemoteTextToTextModel(TextToTextModel):
     def __init__(
         self,
-        model: str = TTT_MODEL_REMOTE,
+        model: str = config.TTT_MODEL_REMOTE,
         hf_token: str | None = None,
     ) -> None:
         # We don't need the 'device' parameter for remote models

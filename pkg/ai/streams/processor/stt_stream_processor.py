@@ -1,13 +1,7 @@
 import queue
 import threading
 
-from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
-from pkg.ai.models.stt.stt_remote import RemoteSpeechToTextModel
-from pkg.ai.streams.input.local.audio_input_stream import LocalAudioStream
-from pkg.ai.streams.processor.aspd_stream_processor import (
-    AdvancedSpeechPauseDetectorStream,
-)
-from pkg.config import HF_API_TOKEN, STT_MODE, STT_MODEL_LOCAL, STT_MODEL_REMOTE, device
+import pkg.config as config
 
 
 class SpeechToTextStreamProcessor:
@@ -21,7 +15,6 @@ class SpeechToTextStreamProcessor:
         stt_model: object,
         input_stream_queue: queue.Queue,
         output_stream_queue: queue.Queue,
-        sample_rate: int = 16000,
     ) -> None:
         """Initializes the SpeechToTextStreamProcessor.
 
@@ -29,13 +22,11 @@ class SpeechToTextStreamProcessor:
             stt_model (object): An object with an `audio_to_text(buffer, sample_rate)` method.
             input_stream_queue (queue.Queue): The queue to get audio chunks from.
             output_stream_queue (queue.Queue): The queue to put transcribed text into.
-            sample_rate (int): The sample rate of the audio.
 
         """
         self.stt_model = stt_model
         self.input_stream_queue = input_stream_queue
         self.output_stream_queue = output_stream_queue
-        self.sample_rate = sample_rate
 
         self.is_running = False
         self.thread = None
@@ -74,7 +65,7 @@ class SpeechToTextStreamProcessor:
                 # Perform speech-to-text on the received chunk
                 text = self.stt_model.audio_to_text(
                     audio_chunk.flatten(),
-                    sample_rate=self.sample_rate,
+                    sample_rate=config.AUDIO_SAMPLE_RATE,
                 )
                 if text:
                     # Place the final text into the output queue
@@ -87,66 +78,3 @@ class SpeechToTextStreamProcessor:
                 continue
             except Exception as e:
                 print(e)
-
-
-if __name__ == "__main__":
-    # 1. Initialize the core components and both queues
-    SAMPLE_RATE = 16000
-    FRAME_DURATION_MS = 30
-    VAD_LEVEL = 3
-    SHORT_PAUSE_MS = 300
-    LONG_PAUSE_MS = 1000
-    STREAM_DETECTOR_INPUT_QUEUE = queue.Queue()
-    STT_INPUT_QUEUE = queue.Queue()
-    TTT_INPUT_QUEUE = queue.Queue()
-
-    audio_stream = LocalAudioStream(output_queue=STREAM_DETECTOR_INPUT_QUEUE)
-
-    # 3. Start capturing audio
-    audio_stream.start()
-
-    stream_detector = AdvancedSpeechPauseDetectorStream(
-        input_queue=STREAM_DETECTOR_INPUT_QUEUE,
-        output_queue=STT_INPUT_QUEUE,
-        sample_rate=SAMPLE_RATE,
-        frame_duration_ms=FRAME_DURATION_MS,
-        vad_level=VAD_LEVEL,
-        short_pause_ms=SHORT_PAUSE_MS,
-        long_pause_ms=LONG_PAUSE_MS,
-    )
-
-    STT_MODEL = (
-        LocalSpeechToTextModel(STT_MODEL_LOCAL, device=device)
-        if STT_MODE == "local"
-        else RemoteSpeechToTextModel(STT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
-    )
-
-    # 2. Initialize the updated SpeechToTextStreamProcessor
-    stt_processor = SpeechToTextStreamProcessor(
-        stt_model=STT_MODEL,
-        input_stream_queue=STT_INPUT_QUEUE,
-        output_stream_queue=TTT_INPUT_QUEUE,
-        sample_rate=SAMPLE_RATE,
-    )
-
-    # 4. Start both components
-    stt_processor.start()
-    stream_detector.start()
-
-    try:
-        # The main thread now listens for results from the TTT_INPUT_QUEUE
-        while True:
-            try:
-                data = TTT_INPUT_QUEUE.get(timeout=1.0)
-                transcribed_text = data["data"]
-                event = data["event"]
-                print(transcribed_text, end="")
-            except queue.Empty:
-                continue
-    except KeyboardInterrupt:
-        pass
-    finally:
-        # 5. Stop the components gracefully
-        stream_detector.stop()
-        stt_processor.stop()
-        audio_stream.stop()

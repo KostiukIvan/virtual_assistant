@@ -20,4 +20,4 @@ WORKDIR /app
 
 # Expose port for HF Space
 ENV PORT=7860
-CMD uvicorn app:app --host 0.0.0.0 --port $PORT
+CMD uvicorn pkg.ai.app:app --host 0.0.0.0 --port $PORT

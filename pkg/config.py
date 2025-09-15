@@ -11,12 +11,14 @@ HF_API_TOKEN = os.environ.get("HF_API_TOKEN")
 
 # STT CONFIG
 STT_MODE = os.environ.get("STT_MODE", "local")
+#STT_MODEL_LOCAL = "openai/whisper-base"
 STT_MODEL_LOCAL = "openai/whisper-base"
 STT_MODEL_REMOTE = "https://hzhe10fml4qh6k4g.us-east-1.aws.endpoints.huggingface.cloud"
 
 
 # TTT CONFIG
 TTT_MODE = os.environ.get("TTT_MODE", "local")
+#TTT_MODEL_LOCAL = "facebook/blenderbot-400M-distill"
 TTT_MODEL_LOCAL = "facebook/blenderbot-400M-distill"
 TTT_MODEL_REMOTE = "https://xzlqct3bgo2ke6fz.us-east-1.aws.endpoints.huggingface.cloud"
 TTT_MAX_TOKENS = 256
@@ -28,6 +30,7 @@ TTT_MEMORY_MANAGER_SUMMARY_EVERY = 20
 
 # TTS CONFIG
 TTS_MODE = os.environ.get("TTS_MODE", "local")
+#TTS_MODEL_LOCAL = "microsoft/speecht5_tts"
 TTS_MODEL_LOCAL = "microsoft/speecht5_tts"
 TTS_MODEL_REMOTE = "https://hjuxzb4rq4r0ujqm.us-east-1.aws.endpoints.huggingface.cloud"  # suno/bark
 

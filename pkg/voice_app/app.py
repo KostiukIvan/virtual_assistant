@@ -34,8 +34,8 @@ from pkg.voice_app.output_audio_stream import LocalAudioProducer
 """
 
 
-HF_WS_URL = "ws://127.0.0.1:8000/stream"
-# HF_WS_URL = "wss://ivankostiuk-virtual-voice-assistant.hf.space/stream"
+#HF_WS_URL = "ws://127.0.0.1:8000/stream"
+HF_WS_URL = "wss://ivankostiuk-virtual-voice-assistant.hf.space/stream"
 
 
 

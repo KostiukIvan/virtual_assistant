@@ -4,6 +4,9 @@ FROM python:3.12-slim
 RUN mkdir -p /app/cache && chmod -R 777 /app/cache
 ENV HF_HOME=/app/cache
 ENV TRANSFORMERS_CACHE=/app/cache
+ENV OMP_NUM_THREADS=1
+# This forces CUDA to throw the error exactly where it happens, so the traceback is correct.
+ENV CUDA_LAUNCH_BLOCKING=1 
 
 # Install system deps (runtime + build)
 RUN apt-get update && apt-get install -y \

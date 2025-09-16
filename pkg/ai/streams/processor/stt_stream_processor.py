@@ -1,6 +1,6 @@
 import queue
 import threading
-
+from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
 import pkg.config as config
 
 
@@ -12,7 +12,7 @@ class SpeechToTextStreamProcessor:
 
     def __init__(
         self,
-        stt_model: object,
+        stt_model: LocalSpeechToTextModel,
         input_stream_queue: queue.Queue,
         output_stream_queue: queue.Queue,
     ) -> None:

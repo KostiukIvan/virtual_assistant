@@ -40,13 +40,13 @@ class RemoteAudioStreamConsumer:
                         message_text = message["text"]
                         event_data = json.loads(message_text)
                         event = event_data.get("event")
-                        if event in "s":
+                        if event == "s":
                             if current_buffer:
                                 self.output_queue.put(
                                     {"data": np.array(current_buffer, dtype=config.AUDIO_DTYPE), "event": "s"}
                                 )
                                 current_buffer = []
-                        if event in "L":
+                        if event == "L":
                             self.output_queue.put({"data": None, "event": "L"})
 
                         print(f"[RemoteAudioStreamConsumer] Received event: {event}")

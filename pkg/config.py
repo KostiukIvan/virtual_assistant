@@ -12,14 +12,14 @@ HF_API_TOKEN = os.environ.get("HF_API_TOKEN")
 # STT CONFIG
 STT_MODE = os.environ.get("STT_MODE", "local")
 #STT_MODEL_LOCAL = "openai/whisper-base"
-STT_MODEL_LOCAL = "openai/whisper-base"
+STT_MODEL_LOCAL = "openai/whisper-large-v3"
 STT_MODEL_REMOTE = "https://hzhe10fml4qh6k4g.us-east-1.aws.endpoints.huggingface.cloud"
 
 
 # TTT CONFIG
 TTT_MODE = os.environ.get("TTT_MODE", "local")
 #TTT_MODEL_LOCAL = "facebook/blenderbot-400M-distill"
-TTT_MODEL_LOCAL = "facebook/blenderbot-400M-distill"
+TTT_MODEL_LOCAL = "facebook/blenderbot-3B"
 TTT_MODEL_REMOTE = "https://xzlqct3bgo2ke6fz.us-east-1.aws.endpoints.huggingface.cloud"
 TTT_MAX_TOKENS = 256
 TTT_NUM_RETURN_SEQUENCES = 1

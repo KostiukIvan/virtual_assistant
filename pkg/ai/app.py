@@ -27,52 +27,54 @@ app = FastAPI()
 async def root():
     return {"status": "ok", "message": "Voice Assistant WebSocket is running. Connect to /stream"}
 
+# ==== QUEUES ====
+PLAYBACK_IN_QUEUE = queue.Queue(maxsize=200)
+STT_INPUT_QUEUE = queue.Queue()
+TTT_INPUT_QUEUE = queue.Queue()
+TTS_INPUT_QUEUE = queue.Queue()
+
+# ==== MODELS ====
+STT_MODEL = LocalSpeechToTextModel(STT_MODEL_LOCAL)
+TTT_MODEL = LocalTextToTextModel(TTT_MODEL_LOCAL)
+TTS_MODEL = LocalTextToSpeechModel(TTS_MODEL_LOCAL)
+
+# ==== PROCESSORS ====
+stt_processor = SpeechToTextStreamProcessor(
+    stt_model=STT_MODEL,
+    input_stream_queue=STT_INPUT_QUEUE,
+    output_stream_queue=TTT_INPUT_QUEUE,
+)
+ttt_processor = TextToTextStreamProcessor(
+    ttt_model=TTT_MODEL,
+    input_stream_queue=TTT_INPUT_QUEUE,
+    output_stream_queue=TTS_INPUT_QUEUE,
+)
+tts_processor = TextToSpeechStreamProcessor(
+    tts_model=TTS_MODEL,
+    input_stream_queue=TTS_INPUT_QUEUE,
+    output_stream_queue=PLAYBACK_IN_QUEUE,
+)
+
+stt_processor.start()
+ttt_processor.start()
+tts_processor.start()
+
+
+
 @app.websocket("/stream")
 async def stream_endpoint(ws: WebSocket):
     await ws.accept()
     print("Client connected.")
 
-    # ==== QUEUES ====
-    playback_in_queue = queue.Queue(maxsize=200)
-
-    STT_INPUT_QUEUE = queue.Queue()
-    TTT_INPUT_QUEUE = queue.Queue()
-    TTS_INPUT_QUEUE = queue.Queue()
-
-    # ==== MODELS ====
-    STT_MODEL = LocalSpeechToTextModel(STT_MODEL_LOCAL)
-    TTT_MODEL = LocalTextToTextModel(TTT_MODEL_LOCAL)
-    TTS_MODEL = LocalTextToSpeechModel(TTS_MODEL_LOCAL)
-
     # ==== COMPONENTS ====
     audio_stream = RemoteAudioStreamConsumer(output_queue=STT_INPUT_QUEUE, ws=ws)
     audio_producer = RemoteAudioStreamProducer(
-        input_queue=playback_in_queue,
+        input_queue=PLAYBACK_IN_QUEUE,
         ws=ws,
     )
 
-    stt_processor = SpeechToTextStreamProcessor(
-        stt_model=STT_MODEL,
-        input_stream_queue=STT_INPUT_QUEUE,
-        output_stream_queue=TTT_INPUT_QUEUE,
-    )
-    ttt_processor = TextToTextStreamProcessor(
-        ttt_model=TTT_MODEL,
-        input_stream_queue=TTT_INPUT_QUEUE,
-        output_stream_queue=TTS_INPUT_QUEUE,
-    )
-    tts_processor = TextToSpeechStreamProcessor(
-        tts_model=TTS_MODEL,
-        input_stream_queue=TTS_INPUT_QUEUE,
-        output_stream_queue=playback_in_queue,
-    )
-
-    # ==== START ALL ====
     audio_stream.start()
     audio_producer.start()
-    stt_processor.start()
-    ttt_processor.start()
-    tts_processor.start()
 
     try:
         print("Assistant running. Speak into the mic...")

@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM ghcr.io/huggingface/transformers-pytorch-gpu:latest
 
 # Create cache directory with proper permissions
 RUN mkdir -p /app/cache && chmod -R 777 /app/cache

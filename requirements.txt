@@ -58,3 +58,4 @@ urllib3==2.5.0
 uvicorn==0.35.0
 webrtcvad==2.0.10
 websockets==15.0.1
+faster_whisper

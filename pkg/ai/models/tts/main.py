@@ -2,35 +2,35 @@ import numpy as np
 
 # New imports for remote models
 import sounddevice as sd
+from pkg.ai.models.stt.stt_remote import RemoteSpeechToTextModel
+from pkg.ai.models.tts.tts_remote import RemoteTextToSpeechModel
+from pkg.ai.models.ttt.ttt_remote import RemoteTextToTextModel
 
 import pkg.config as config
 
 # Assume these classes are defined in their respective files as before
-from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
-from pkg.ai.models.stt.stt_remote import RemoteSpeechToTextModel
+from pkg.ai.models.stt.whisper import LocalSpeechToTextModel
 from pkg.ai.models.tts.tts_local import LocalTextToSpeechModel
-from pkg.ai.models.tts.tts_remote import RemoteTextToSpeechModel
 from pkg.ai.models.ttt.ttt_local import LocalTextToTextModel
-from pkg.ai.models.ttt.ttt_remote import RemoteTextToTextModel
 
 
 # ===== Main Conversational Loop =====
 def main() -> None:
     # Init models
     stt = (
-        LocalSpeechToTextModel(config.STT_MODEL_LOCAL)  # drop device if not supported
+        LocalSpeechToTextModel(config.STT_MODEL)  # drop device if not supported
         if config.STT_MODE == "local"
         else RemoteSpeechToTextModel(config.STT_MODEL_REMOTE, hf_token=config.HF_API_TOKEN)
     )
 
     ttt = (
-        LocalTextToTextModel(config.TTT_MODEL_LOCAL)
+        LocalTextToTextModel(config.TTT_MODEL)
         if config.TTT_MODE == "local"
         else RemoteTextToTextModel(config.TTT_MODEL_REMOTE, hf_token=config.HF_API_TOKEN)
     )
 
     tts = (
-        LocalTextToSpeechModel(config.TTS_MODEL_LOCAL)
+        LocalTextToSpeechModel(config.TTS_MODEL)
         if config.TTS_MODE == "local"
         else RemoteTextToSpeechModel(config.TTS_MODEL_REMOTE, hf_token=config.HF_API_TOKEN)
     )

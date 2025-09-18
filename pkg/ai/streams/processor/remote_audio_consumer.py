@@ -29,12 +29,20 @@ class RemoteAudioStreamConsumer:
             current_buffer = []
             while self.is_running:
                 message = await self.ws.receive()
+
+                # Handle disconnects gracefully
+                if message["type"] == "websocket.disconnect":
+                    break
+
                 if message["type"] == "websocket.receive":
                     if "bytes" in message:
                         # Handle binary data (audio frames)
                         data = message["bytes"]
+
+                        # Convert to float32 numpy, then extend buffer
                         frames = np.frombuffer(data, dtype=config.AUDIO_DTYPE)
                         current_buffer.extend(frames.flatten())
+
                     elif "text" in message:
                         # Handle text data (JSON event)
                         message_text = message["text"]
@@ -48,8 +56,6 @@ class RemoteAudioStreamConsumer:
                                 current_buffer = []
                         if event == "L":
                             self.output_queue.put({"data": None, "event": "L"})
-
-                        print(f"[RemoteAudioStreamConsumer] Received event: {event}")
 
         except asyncio.CancelledError:
             print("[RemoteAudioStreamConsumer] Ingestion loop cancelled.")

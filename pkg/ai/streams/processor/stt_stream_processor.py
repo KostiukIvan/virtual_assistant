@@ -1,7 +1,9 @@
 import queue
+import sys
 import threading
-from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
+
 import pkg.config as config
+from pkg.ai.models.stt.stt_interface import SpeechToTextModel
 
 
 class SpeechToTextStreamProcessor:
@@ -12,7 +14,7 @@ class SpeechToTextStreamProcessor:
 
     def __init__(
         self,
-        stt_model: LocalSpeechToTextModel,
+        stt_model: SpeechToTextModel,
         input_stream_queue: queue.Queue,
         output_stream_queue: queue.Queue,
     ) -> None:
@@ -55,7 +57,7 @@ class SpeechToTextStreamProcessor:
                 data = self.input_stream_queue.get(timeout=1.0)
                 audio_chunk = data["data"]
                 event = data["event"]
-
+                print("STT E = ", event, audio_chunk is None)
                 if event == "L" and audio_chunk is None:
                     self.output_stream_queue.put({"data": None, "event": "L"})
 
@@ -63,11 +65,14 @@ class SpeechToTextStreamProcessor:
                     continue
 
                 # Perform speech-to-text on the received chunk
-                text = self.stt_model.audio_to_text(
+                text, confidence = self.stt_model.audio_to_text(
                     audio_chunk.flatten(),
                     sample_rate=config.AUDIO_SAMPLE_RATE,
                 )
-                if text:
+                print(f"[STT] Transcribed: '{text}' (confidence: {confidence})")
+                sys.stdout.flush()
+
+                if text and confidence > config.STT_CONFIDENCE_THRESHOLD:
                     # Place the final text into the output queue
                     self.output_stream_queue.put({"data": text, "event": event})
                 else:

@@ -7,7 +7,7 @@ from transformers import SpeechT5ForTextToSpeech, SpeechT5HifiGan, SpeechT5Proce
 import pkg.config as config
 from pkg.ai.models.tts.tts_interface import TextToSpeechModel
 from pkg.config import (
-    TTS_MODEL_LOCAL,
+    TTS_MODEL,
 )
 
 
@@ -15,7 +15,7 @@ from pkg.config import (
 class LocalTextToSpeechModel(TextToSpeechModel):
     def __init__(
         self,
-        model: str = TTS_MODEL_LOCAL,
+        model: str = TTS_MODEL,
     ) -> None:
         super().__init__(model, config.DEVICE_CUDA_OR_CPU)
         self.processor = SpeechT5Processor.from_pretrained(model)

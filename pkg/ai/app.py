@@ -7,15 +7,15 @@ import queue
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 # === Import your models ===
-from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
+from pkg.ai.models.stt.stt_model_selector import STTModelSelector
 from pkg.ai.models.tts.tts_local import LocalTextToSpeechModel
-from pkg.ai.models.ttt.ttt_local import LocalTextToTextModel
+from pkg.ai.models.ttt.ttt_model_selector import TTTModelSelector
 from pkg.ai.streams.processor.remote_audio_consumer import RemoteAudioStreamConsumer
 from pkg.ai.streams.processor.remote_audio_producer import RemoteAudioStreamProducer
 from pkg.ai.streams.processor.stt_stream_processor import SpeechToTextStreamProcessor
 from pkg.ai.streams.processor.tts_stream_processor import TextToSpeechStreamProcessor
 from pkg.ai.streams.processor.ttt_stream_processor import TextToTextStreamProcessor
-from pkg.config import STT_MODEL_LOCAL, TTS_MODEL_LOCAL, TTT_MODEL_LOCAL
+from pkg.config import STT_MODEL, TTS_MODEL, TTT_MODEL
 
 app = FastAPI()
 # For local dev:
@@ -23,9 +23,11 @@ app = FastAPI()
 # For Hugging Face Spaces:
 # uvicorn app:app --host 0.0.0.0 --port $PORT
 
+
 @app.get("/")
 async def root():
     return {"status": "ok", "message": "Voice Assistant WebSocket is running. Connect to /stream"}
+
 
 # ==== QUEUES ====
 PLAYBACK_IN_QUEUE = queue.Queue(maxsize=200)
@@ -34,9 +36,9 @@ TTT_INPUT_QUEUE = queue.Queue()
 TTS_INPUT_QUEUE = queue.Queue()
 
 # ==== MODELS ====
-STT_MODEL = LocalSpeechToTextModel(STT_MODEL_LOCAL)
-TTT_MODEL = LocalTextToTextModel(TTT_MODEL_LOCAL)
-TTS_MODEL = LocalTextToSpeechModel(TTS_MODEL_LOCAL)
+STT_MODEL = STTModelSelector.get_stt_model(STT_MODEL)
+TTT_MODEL = TTTModelSelector.get_stt_model(TTT_MODEL)
+TTS_MODEL = LocalTextToSpeechModel(TTS_MODEL)
 
 # ==== PROCESSORS ====
 stt_processor = SpeechToTextStreamProcessor(
@@ -58,7 +60,6 @@ tts_processor = TextToSpeechStreamProcessor(
 stt_processor.start()
 ttt_processor.start()
 tts_processor.start()
-
 
 
 @app.websocket("/stream")

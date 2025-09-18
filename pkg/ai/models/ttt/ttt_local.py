@@ -10,7 +10,7 @@ from pkg.ai.models.ttt.ttt_interface import TextToTextModel
 class LocalTextToTextModel(TextToTextModel):
     def __init__(
         self,
-        model: str = config.TTT_MODEL_LOCAL,
+        model: str = config.TTT_MODEL,
     ):
         super().__init__(model, config.DEVICE_CUDA_OR_CPU)
         self.max_length = config.TTT_MAX_TOKENS
@@ -34,21 +34,14 @@ class LocalTextToTextModel(TextToTextModel):
         )
         self.rag = RAGAssistant(knowledge_base=self.kb)
 
-        self._init_tokenizer()
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model)
+        # some tokenizers report huge values for model_max_length, guard it:
+        try:
+            self.model_max_len = int(self.tokenizer.model_max_length)
+        except Exception:
+            self.model_max_len = 2048  # safe fallback
 
-    def _load_pipeline(self):
-        if self.generator is None:
-            self.generator = pipeline("text2text-generation", model=self.model, device=self.device)
-
-    def _init_tokenizer(self):
-        # call once after model name is known
-        if not hasattr(self, "tokenizer") or self.tokenizer is None:
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model)
-            # some tokenizers report huge values for model_max_length, guard it:
-            try:
-                self.model_max_len = int(self.tokenizer.model_max_length)
-            except Exception:
-                self.model_max_len = 2048  # safe fallback
+        self.generator = pipeline("text2text-generation", model=self.model, device=self.device)
 
     def _num_tokens(self, text: str) -> int:
         # returns number of tokens for text
@@ -86,8 +79,7 @@ class LocalTextToTextModel(TextToTextModel):
     def _summarize_chunks(self, chunks: list[str], summary_prompt_prefix: str = "Summarize briefly:") -> str:
         """Summarize each chunk with the generator and then join + summarize the summaries if needed."""
         summaries = []
-        # ensure pipeline loaded
-        self._load_pipeline()
+
         for c in chunks:
             prompt = f"{summary_prompt_prefix}\n\n{c}\n\nSummary:"
             out = self.generator(prompt, max_length=64, num_return_sequences=1, clean_up_tokenization_spaces=True)
@@ -115,7 +107,6 @@ class LocalTextToTextModel(TextToTextModel):
         3) summarize RAG docs if needed
         4) final truncation preserving system prompt and recent turns
         """
-        self._init_tokenizer()
 
         # Build candidate prompt
         def build_prompt(mem, rag):
@@ -170,8 +161,6 @@ class LocalTextToTextModel(TextToTextModel):
         return final_prompt
 
     def text_to_text(self, message: str, **generate_kwargs) -> str:
-        self._load_pipeline()
-
         # Add user turn
         self.memory.add_turn("User", message)
 

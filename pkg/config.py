@@ -9,18 +9,17 @@ load_dotenv()
 # Hugging Face API Token for remote models
 HF_API_TOKEN = os.environ.get("HF_API_TOKEN")
 
+
 # STT CONFIG
-STT_MODE = os.environ.get("STT_MODE", "local")
-#STT_MODEL_LOCAL = "openai/whisper-base"
-STT_MODEL_LOCAL = "openai/whisper-large-v3"
-STT_MODEL_REMOTE = "https://hzhe10fml4qh6k4g.us-east-1.aws.endpoints.huggingface.cloud"
+# Faster Whisper models: "tiny.en", "base.en", "small.en", "medium.en", "large-v3"
+# Other models: "facebook/wav2vec2-base-960h", "openai/whisper-small"
+STT_MODEL = "small.en"
+STT_CONFIDENCE_THRESHOLD = 0.3  # minimum confidence to accept transcription
 
 
 # TTT CONFIG
-TTT_MODE = os.environ.get("TTT_MODE", "local")
-#TTT_MODEL_LOCAL = "facebook/blenderbot-400M-distill"
-TTT_MODEL_LOCAL = "facebook/blenderbot-3B"
-TTT_MODEL_REMOTE = "https://xzlqct3bgo2ke6fz.us-east-1.aws.endpoints.huggingface.cloud"
+# TTT_MODEL = "facebook/blenderbot-400M-distill"
+TTT_MODEL = "facebook/blenderbot-3B"
 TTT_MAX_TOKENS = 256
 TTT_NUM_RETURN_SEQUENCES = 1
 TTT_MEMORY_SIZE = 10
@@ -29,10 +28,8 @@ TTT_MEMORY_MANAGER_SUMMARY_EVERY = 20
 
 
 # TTS CONFIG
-TTS_MODE = os.environ.get("TTS_MODE", "local")
-#TTS_MODEL_LOCAL = "microsoft/speecht5_tts"
-TTS_MODEL_LOCAL = "microsoft/speecht5_tts"
-TTS_MODEL_REMOTE = "https://hjuxzb4rq4r0ujqm.us-east-1.aws.endpoints.huggingface.cloud"  # suno/bark
+# TTS_MODEL = "microsoft/speecht5_tts"
+TTS_MODEL = "microsoft/speecht5_tts"
 
 # AUDIO CONFIG
 AUDIO_SAMPLE_RATE = 16000
@@ -56,3 +53,4 @@ QUEUE_SLEEP = 0.01  # seconds
 # GPU CONFIG
 DEVICE = 0 if torch.cuda.is_available() else -1  # 0 for GPU, -1 for CPU
 DEVICE_CUDA_OR_CPU = "cuda" if torch.cuda.is_available() else "cpu"
+TENSOR_DTYPE = torch.float32

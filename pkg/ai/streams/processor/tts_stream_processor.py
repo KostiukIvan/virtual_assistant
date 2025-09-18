@@ -58,7 +58,7 @@ class TextToSpeechStreamProcessor:
                 data = self.input_stream_queue.get(timeout=0.2)
                 bot_response = data["data"]
                 events.add(data["event"])
-                print("TTS E = ", data["event"], events)
+                print("TTS E = ", data["event"], events, bot_response)
                 sys.stdout.flush()
                 if bot_response:
                     buffer.append(bot_response)

@@ -8,25 +8,16 @@ from pkg.ai.streams.processor.aspd_stream_processor import (
     AdvancedSpeechPauseDetectorStream,
 )
 
-from pkg.ai.models.stt.stt_local import LocalSpeechToTextModel
-from pkg.ai.models.stt.stt_remote import RemoteSpeechToTextModel
-from pkg.ai.models.tts.main import LocalTextToSpeechModel, RemoteTextToSpeechModel
+from pkg.ai.models.stt.whisper import LocalSpeechToTextModel
+from pkg.ai.models.tts.main import LocalTextToSpeechModel
 from pkg.ai.models.ttt.ttt_local import LocalTextToTextModel
-from pkg.ai.models.ttt.ttt_remote import RemoteTextToTextModel
 from pkg.ai.streams.processor.stt_stream_processor import SpeechToTextStreamProcessor
 from pkg.ai.streams.processor.tts_stream_processor import TextToSpeechStreamProcessor
 from pkg.ai.streams.processor.ttt_stream_processor import TextToTextStreamProcessor
 from pkg.config import (
-    HF_API_TOKEN,
-    STT_MODE,
-    STT_MODEL_LOCAL,
-    STT_MODEL_REMOTE,
-    TTS_MODE,
-    TTS_MODEL_LOCAL,
-    TTS_MODEL_REMOTE,
-    TTT_MODE,
-    TTT_MODEL_LOCAL,
-    TTT_MODEL_REMOTE,
+    STT_MODEL,
+    TTS_MODEL,
+    TTT_MODEL,
     device,
 )
 
@@ -50,21 +41,9 @@ if __name__ == "__main__":
     TTS_INPUT_QUEUE = queue.Queue()
 
     # Speech processing models
-    STT_MODEL = (
-        LocalSpeechToTextModel(STT_MODEL_LOCAL, device=device)
-        if STT_MODE == "local"
-        else RemoteSpeechToTextModel(STT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
-    )
-    TTT_MODEL = (
-        LocalTextToTextModel(TTT_MODEL_LOCAL, device=device)
-        if TTT_MODE == "local"
-        else RemoteTextToTextModel(TTT_MODEL_REMOTE, hf_token=HF_API_TOKEN)
-    )
-    TTS_MODEL = (
-        LocalTextToSpeechModel(TTS_MODEL_LOCAL, device=device)
-        if TTS_MODE == "local"
-        else RemoteTextToSpeechModel(TTS_MODEL_REMOTE, hf_token=HF_API_TOKEN)
-    )
+    STT_MODEL = LocalSpeechToTextModel(STT_MODEL, device=device)
+    TTT_MODEL = LocalTextToTextModel(TTT_MODEL, device=device)
+    TTS_MODEL = LocalTextToSpeechModel(TTS_MODEL, device=device)
 
     # ==== COMPONENTS ====
 

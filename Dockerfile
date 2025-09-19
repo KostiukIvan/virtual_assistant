@@ -1,13 +1,12 @@
-FROM ghcr.io/huggingface/transformers-pytorch-gpu:latest
+FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime
 
-# Create cache directory with proper permissions
+# Create cache directory
 RUN mkdir -p /app/cache && chmod -R 777 /app/cache
 ENV HF_HOME=/app/cache
 ENV OMP_NUM_THREADS=1
-# This forces CUDA to throw the error exactly where it happens, so the traceback is correct.
 ENV CUDA_LAUNCH_BLOCKING=1 
 
-# Install system deps (runtime + build)
+# Install system deps
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libsndfile1 \

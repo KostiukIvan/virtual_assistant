@@ -6,7 +6,7 @@ ENV HF_HOME=/app/cache
 ENV OMP_NUM_THREADS=1
 ENV CUDA_LAUNCH_BLOCKING=1 
 
-# Install system deps, including Python 3.12 and its pip package
+# Install system deps
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     libsndfile1 \
@@ -14,9 +14,14 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     python3-dev \
     python3-pip \
+    python3.12-venv \ 
     && rm -rf /var/lib/apt/lists/*
 
-# Install pip deps
+# Create and activate a virtual environment
+RUN python3.12 -m venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Install pip deps into the virtual environment
 COPY requirements.txt .
 RUN python3.12 -m pip install --no-cache-dir --upgrade pip setuptools wheel
 RUN python3.12 -m pip install --no-cache-dir -r requirements.txt

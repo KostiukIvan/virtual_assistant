@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-py312
+FROM huggingface/transformers-pytorch-gpu
 
 # Create cache directory
 RUN mkdir -p /app/cache && chmod -R 777 /app/cache

@@ -24,7 +24,7 @@ if LOCAL:
     TTT_MODEL = "facebook/blenderbot-400M-distill"
 else:
     # TTT_MODEL = "facebook/blenderbot-3B"
-    TTT_MODEL = "meta-llama/Llama-3.2-1B"
+    TTT_MODEL = "meta-llama/Llama-3.2-1B-Instruct"
 TTT_MAX_TOKENS = 256
 TTT_NUM_RETURN_SEQUENCES = 1
 TTT_MEMORY_SIZE = 10

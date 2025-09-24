@@ -67,7 +67,7 @@ TTS_INPUT_QUEUE = queue.Queue()
 
 # ==== MODELS ====
 STT = STTModelSelector.get_stt_model(STT_MODEL)
-TTT = TTTModelSelector.get_stt_model(TTT_MODEL)
+TTT = TTTModelSelector.get_ttt_model(TTT_MODEL)
 TTS = LocalTextToSpeechModel(TTS_MODEL)
 
 # ==== PROCESSORS ====

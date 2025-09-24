@@ -1,6 +1,7 @@
 import logging
+import os
 
-from transformers import AutoTokenizer, Pipeline, pipeline
+from transformers import AutoModelForCausalLM, AutoTokenizer, Pipeline, pipeline
 
 import pkg.config as config
 from pkg.ai.models.ttt.memory_managers.rag.knowledge_base import KnowledgeBase
@@ -9,6 +10,7 @@ from pkg.ai.models.ttt.memory_managers.sliding_window_memory_manager import Memo
 from pkg.ai.models.ttt.ttt_interface import TextToTextModel
 
 logger = logging.getLogger(__name__)
+hf_token = os.environ.get("HF_TOKEN")
 
 
 class LocalTextToTextModel(TextToTextModel):
@@ -38,14 +40,18 @@ class LocalTextToTextModel(TextToTextModel):
         )
         self.rag = RAGAssistant(knowledge_base=self.kb)
 
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model, use_auth_token=hf_token)
         # some tokenizers report huge values for model_max_length, guard it:
         try:
             self.model_max_len = int(self.tokenizer.model_max_length)
         except Exception:
             self.model_max_len = 2048  # safe fallback
 
-        self.generator = pipeline("text2text-generation", model=self.model, device=self.device)
+        self.model_obj = AutoModelForCausalLM.from_pretrained(
+            self.model, use_auth_token=hf_token, device_map="auto"  # if you want GPU support
+        )
+
+        self.generator = pipeline("text2text-generation", model=self.model_obj, device=self.device)
 
     def _num_tokens(self, text: str) -> int:
         # returns number of tokens for text

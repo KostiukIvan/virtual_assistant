@@ -1,5 +1,6 @@
 import asyncio
 import collections
+import logging
 import sys
 
 import numpy as np
@@ -8,6 +9,8 @@ import webrtcvad
 
 import pkg.config as config
 from pkg.utils import float_to_pcm16
+
+logger = logging.getLogger(__name__)
 
 
 class AdvancedSpeechPauseDetector:
@@ -129,9 +132,9 @@ class AdvancedSpeechPauseDetectorAsyncStream:
                     await self.output_queue.put({"data": None, "event": "L"})
 
         except asyncio.CancelledError:
-            print("Processing loop was cancelled.")
-        except Exception as e:
-            print(f"An error occurred in the processing loop: {e}", file=sys.stderr)
+            logger.info("Processing loop was cancelled.")
+        except Exception:
+            logger.exception("An error occurred in the processing loop")
 
     def start(self) -> None:
         if self._processing_task is None:
@@ -154,13 +157,13 @@ async def mic_producer(queue: asyncio.Queue):
         dtype=config.AUDIO_DTYPE,
         blocksize=config.AUDIO_FRAME_SAMPLES,
     ) as stream:
-        print("🎙️ Microphone stream started. Speak into the mic...")
+        logger.info("🎙️ Microphone stream started. Speak into the mic...")
         try:
             while True:
                 audio_chunk, _ = stream.read(config.AUDIO_FRAME_SAMPLES)
                 await queue.put(audio_chunk)
         except asyncio.CancelledError:
-            print("Mic producer cancelled.")
+            logger.info("Mic producer cancelled.")
 
 
 async def main():
@@ -178,7 +181,7 @@ async def main():
 
             # else: ignore "p" (raw chunks) for now
     except KeyboardInterrupt:
-        print("\nStopping...")
+        logger.info("\nStopping...")
     finally:
         mic_task.cancel()
         await detector.stop()

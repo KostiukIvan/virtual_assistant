@@ -1,8 +1,10 @@
+import logging
 import queue
-import sys
 import threading
 
 import sounddevice as sd
+
+logger = logging.getLogger(__name__)
 
 
 class TextToSpeechStreamProcessor:
@@ -58,8 +60,7 @@ class TextToSpeechStreamProcessor:
                 data = self.input_stream_queue.get(timeout=0.2)
                 bot_response = data["data"]
                 events.add(data["event"])
-                print("TTS E = ", data["event"], events, bot_response)
-                sys.stdout.flush()
+
                 if bot_response:
                     buffer.append(bot_response)
             except queue.Empty:
@@ -68,10 +69,13 @@ class TextToSpeechStreamProcessor:
             if "L" in events:
                 for text in buffer:
                     try:
+                        logger.info(f"TTS received: '{text[:10]}'")
                         audio_output = self.tts_model.text_to_speech(text)
+                        logger.info("TTS produced")
 
                         self.output_stream_queue.put({"data": audio_output, "event": "L"})
                     except Exception:
+                        logger.exception("TTS got exception")
                         continue
                 buffer.clear()
                 events = set()

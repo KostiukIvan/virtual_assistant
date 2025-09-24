@@ -1,3 +1,5 @@
+import logging
+
 from transformers import AutoTokenizer, Pipeline, pipeline
 
 import pkg.config as config
@@ -5,6 +7,8 @@ from pkg.ai.models.ttt.memory_managers.rag.knowledge_base import KnowledgeBase
 from pkg.ai.models.ttt.memory_managers.rag.rag_assisstant import RAGAssistant
 from pkg.ai.models.ttt.memory_managers.sliding_window_memory_manager import MemoryManager
 from pkg.ai.models.ttt.ttt_interface import TextToTextModel
+
+logger = logging.getLogger(__name__)
 
 
 class LocalTextToTextModel(TextToTextModel):
@@ -166,7 +170,8 @@ class LocalTextToTextModel(TextToTextModel):
 
         # If too long, force summarize
         if len(self.memory.turns) > 0 and self._num_tokens(self.memory.build_context()) > (self.max_length // 2):
-            self.memory.force_summarize(generator=self.generator)
+            # self.memory.force_summarize(generator=self.generator)
+            self.memory.force_summarize()
 
         system_prompt = "You are a polite and professional virtual phone assistant for ACME Corp."
         memory_context = self.memory.build_context()
@@ -175,8 +180,7 @@ class LocalTextToTextModel(TextToTextModel):
         prompt = self._ensure_prompt_fits(
             system_prompt, memory_context, rag_context, message, reserved_output_tokens=64
         )
-        print("=== Prompt ===")
-        print(prompt)
+        logger.debug(prompt)
         outputs = self.generator(
             prompt,
             max_length=self.max_length,

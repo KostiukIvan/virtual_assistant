@@ -1,9 +1,11 @@
+import logging
 import queue
-import sys
 import threading
 
 import pkg.config as config
 from pkg.ai.models.stt.stt_interface import SpeechToTextModel
+
+logger = logging.getLogger(__name__)
 
 
 class SpeechToTextStreamProcessor:
@@ -57,7 +59,7 @@ class SpeechToTextStreamProcessor:
                 data = self.input_stream_queue.get(timeout=1.0)
                 audio_chunk = data["data"]
                 event = data["event"]
-                print("STT E = ", event, audio_chunk is None)
+
                 if event == "L" and audio_chunk is None:
                     self.output_stream_queue.put({"data": None, "event": "L"})
 
@@ -65,12 +67,12 @@ class SpeechToTextStreamProcessor:
                     continue
 
                 # Perform speech-to-text on the received chunk
+                logger.info("STT received")
                 text, confidence = self.stt_model.audio_to_text(
                     audio_chunk.flatten(),
                     sample_rate=config.AUDIO_SAMPLE_RATE,
                 )
-                print(f"[STT] Transcribed: '{text}' (confidence: {confidence})")
-                sys.stdout.flush()
+                logger.info(f"STT produced: '{text}' (confidence: {confidence})")
 
                 if text and confidence > config.STT_CONFIDENCE_THRESHOLD:
                     # Place the final text into the output queue
@@ -81,5 +83,5 @@ class SpeechToTextStreamProcessor:
             except queue.Empty:
                 # This is expected when there's no speech.
                 continue
-            except Exception as e:
-                print(e)
+            except Exception:
+                logger.exception("STT got exception")

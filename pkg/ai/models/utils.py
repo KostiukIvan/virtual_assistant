@@ -1,8 +1,11 @@
 import asyncio
+import logging
 
 import sounddevice as sd
 
 import pkg.config as config
+
+logger = logging.getLogger(__name__)
 
 
 async def mic_producer(queue: asyncio.Queue):
@@ -13,10 +16,10 @@ async def mic_producer(queue: asyncio.Queue):
         dtype=config.AUDIO_DTYPE,
         blocksize=config.AUDIO_FRAME_SAMPLES,
     ) as stream:
-        print("🎙️ Microphone stream started. Speak into the mic...")
+        logger.info("🎙️ Microphone stream started. Speak into the mic...")
         try:
             while True:
                 audio_chunk, _ = stream.read(config.AUDIO_FRAME_SAMPLES)
                 await queue.put(audio_chunk)
         except asyncio.CancelledError:
-            print("Mic producer cancelled.")
+            logger.info("Mic producer cancelled.")

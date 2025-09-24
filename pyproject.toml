@@ -44,7 +44,6 @@ select = [
   "UP",  # pyupgrade
 ]
 ignore = [
-  "T201",   # allow print()
   "D401",   # allow "Converts ..." docstrings
   "ARG005", # ignore unused lambda args (if you need them in callbacks)
 ]

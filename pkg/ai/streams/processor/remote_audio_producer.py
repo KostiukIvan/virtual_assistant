@@ -1,10 +1,13 @@
 import asyncio
+import logging
 import queue
 
 import numpy as np
 from fastapi import WebSocket
 
 import pkg.config as config
+
+logger = logging.getLogger(__name__)
 
 
 class RemoteAudioStreamProducer:
@@ -29,7 +32,7 @@ class RemoteAudioStreamProducer:
             leftover = np.array([], dtype=config.AUDIO_DTYPE)
             buffer = []
 
-            print("RemoteAudioStreamProducer loop started")
+            logger.info("RemoteAudioStreamProducer loop started")
 
             while self.is_running:
                 try:
@@ -66,19 +69,20 @@ class RemoteAudioStreamProducer:
                     buffer.clear()
 
         except asyncio.CancelledError:
-            print("[RemoteAudioStreamProducer] Cancelled")
-        except Exception as e:
-            print("[RemoteAudioStreamProducer] Error:", e)
+            logger.info("Cancelled")
+        except Exception:
+            logger.exception("[RemoteAudioStreamProducer] Error:")
         finally:
-            print("RemoteAudioStreamProducer stopped")
+            logger.info("RemoteAudioStreamProducer stopped")
 
     def start(self) -> None:
         if self.is_running:
+            logger.warning("RemoteAudioStreamProducer already started")
             return
         self.is_running = True
         loop = asyncio.get_event_loop()
         self.task = loop.create_task(self._production_loop())
-        print("RemoteAudioStreamProducer started")
+        logger.info("RemoteAudioStreamProducer started")
 
     async def stop(self) -> None:
         if not self.is_running:
@@ -90,4 +94,4 @@ class RemoteAudioStreamProducer:
                 await self.task
             except asyncio.CancelledError:
                 pass
-        print("RemoteAudioStreamProducer stopped")
+        logger.info("RemoteAudioStreamProducer stopped")

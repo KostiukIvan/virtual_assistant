@@ -1,5 +1,7 @@
 import asyncio
 import json
+import logging
+import logging.config
 
 import numpy as np
 import websockets
@@ -33,9 +35,30 @@ from pkg.voice_app.output_audio_stream import LocalAudioProducer
 
 """
 
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "colored": {
+            "()": "colorlog.ColoredFormatter",
+            "format": "%(log_color)s%(asctime)s [%(levelname)-8s] %(name)s:%(lineno)d%(reset)s - %(message)s",
+            "datefmt": "%H:%M:%S",
+        },
+    },
+    "handlers": {
+        "default": {
+            "class": "logging.StreamHandler",
+            "formatter": "colored",
+        },
+    },
+    "root": {
+        "handlers": ["default"],
+        "level": "INFO",
+    },
+}
 
-HF_WS_URL = "ws://127.0.0.1:8000/stream"
-# HF_WS_URL = "wss://ivankostiuk-virtual-voice-assistant.hf.space/stream"
+logging.config.dictConfig(LOGGING_CONFIG)
+logger = logging.getLogger(__name__)
 
 
 async def voice_client(
@@ -45,8 +68,8 @@ async def voice_client(
     start_workers_fn: callable = None,
 ):
 
-    async with websockets.connect(HF_WS_URL) as ws:
-        print("Connected to WebSocket Voice API")
+    async with websockets.connect(config.HF_WS_URL) as ws:
+        logger.info("Connected to WebSocket Voice API")
         start_workers_fn()
 
         # Sender coroutine: sends mic audio to the server
@@ -62,15 +85,17 @@ async def voice_client(
                     if event == "p" and data is not None:
                         await ws.send(data.tobytes())
                     if event == "s":
-                        print("[SENT] Short pause detected, sending audio.")
+                        logger.debug("[SENT] Short pause detected, sending audio.")
                         await ws.send(json.dumps({"event": "s"}))
                     elif event == "L":
-                        print("[SENT] Long pause detected, sending stop signal.")
+                        logger.debug("[SENT] Long pause detected, sending stop signal.")
                         await ws.send(json.dumps({"event": "L"}))
             except asyncio.CancelledError:
-                print("Sender task was cancelled.")
+                logger.info("Sender task was cancelled.")
             except websockets.exceptions.ConnectionClosed:
-                print("Connection closed by server, sender exiting.")
+                logger.info("Connection closed by server, sender exiting.")
+            except Exception:
+                logger.exception("Sender got exception")
 
         # Receiver coroutine: receives audio from the server and queues it for playback
         async def receiver():
@@ -82,9 +107,11 @@ async def voice_client(
                     await playback_ref_queue.put(frame)  # for AEC
 
             except asyncio.CancelledError:
-                print("Receiver task was cancelled.")
+                logger.info("Receiver task was cancelled.")
             except websockets.exceptions.ConnectionClosed:
-                print("Connection closed by server, receiver exiting.")
+                logger.info("Connection closed by server, receiver exiting.")
+            except Exception:
+                logger.exception("Receiver got exception")
 
         # Run both sender and receiver concurrently
         await asyncio.gather(sender(), receiver())

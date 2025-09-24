@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 import numpy as np
 
@@ -9,10 +10,12 @@ from pkg.voice_app.aspd_worker import (
     AdvancedSpeechPauseDetectorAsyncStream,
 )
 
+logger = logging.getLogger(__name__)
+
 
 async def main():
-    print("Starting STT test...")
-    print("DEVICE:", config.DEVICE_CUDA_OR_CPU)
+    logger.info("Starting STT test...")
+    logger.info("DEVICE:", config.DEVICE_CUDA_OR_CPU)
     stt = STTModelSelector.get_stt_model("small.en")  # "tiny.en", "base.en", "small.en", "medium.en", "large-v3"
     mic_queue = asyncio.Queue(maxsize=1)
     event_queue = asyncio.Queue(maxsize=1)
@@ -33,11 +36,11 @@ async def main():
                 chunk = data["data"]
 
                 text, conf = stt.audio_to_text(np.array(audio_chunks).flatten(), sample_rate=config.AUDIO_SAMPLE_RATE)
-                print(f"Transcription: {text} (Confidence: {conf})")
+                logger.info(f"Transcription: {text} (Confidence: {conf})")
                 audio_chunks = []  # reset for next chunk
 
     except KeyboardInterrupt:
-        print("\nStopping...")
+        logger.info("\nStopping...")
     finally:
         mic_task.cancel()
         await detector.stop()

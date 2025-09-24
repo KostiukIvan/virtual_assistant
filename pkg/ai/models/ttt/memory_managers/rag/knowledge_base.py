@@ -1,4 +1,4 @@
-import faiss # TODO: add support for GPU based
+import faiss  # TODO: add support for GPU based
 from sentence_transformers import SentenceTransformer
 
 

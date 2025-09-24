@@ -1,9 +1,11 @@
 import asyncio
-import sys
+import logging
 
 import sounddevice as sd
 
 import pkg.config as config
+
+logger = logging.getLogger(__name__)
 
 
 class LocalAudioStream:
@@ -22,11 +24,11 @@ class LocalAudioStream:
 
         def callback(indata, frames, callback_time, status):
             if status:
-                print(f"[LocalAudioStream] Status: {status}", file=sys.stderr)
+                logger.info(f"[LocalAudioStream] Status: {status}")
             try:
                 self.loop.call_soon_threadsafe(self.output_queue.put_nowait, indata.copy())
-            except Exception as e:
-                print(f"[LocalAudioStream] Callback error: {e}", file=sys.stderr)
+            except Exception:
+                logger.exception("[LocalAudioStream] Callback error")
 
         self.stream = sd.InputStream(
             channels=config.AUDIO_CHANNELS,
@@ -36,10 +38,10 @@ class LocalAudioStream:
             callback=callback,
         )
         self.stream.start()
-        print("LocalAudioStream started.")
+        logger.info("LocalAudioStream started.")
 
     def stop(self):
         if self.stream and self.stream.active:
             self.stream.stop()
             self.stream.close()
-            print("LocalAudioStream stopped.")
+            logger.info("LocalAudioStream stopped.")

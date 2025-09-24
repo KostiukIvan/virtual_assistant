@@ -2,7 +2,10 @@
 
 import asyncio
 import contextlib
+import logging
+import logging.config
 import queue
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
@@ -17,6 +20,32 @@ from pkg.ai.streams.processor.tts_stream_processor import TextToSpeechStreamProc
 from pkg.ai.streams.processor.ttt_stream_processor import TextToTextStreamProcessor
 from pkg.config import STT_MODEL, TTS_MODEL, TTT_MODEL
 
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "colored": {
+            "()": "colorlog.ColoredFormatter",
+            "format": "%(log_color)s%(asctime)s [%(levelname)-8s] %(name)s:%(lineno)d%(reset)s - %(message)s",
+            "datefmt": "%H:%M:%S",
+        },
+    },
+    "handlers": {
+        "default": {
+            "class": "logging.StreamHandler",
+            "formatter": "colored",
+        },
+    },
+    "root": {
+        "handlers": ["default"],
+        "level": "INFO",
+    },
+}
+
+logging.config.dictConfig(LOGGING_CONFIG)
+logger = logging.getLogger(__name__)
+
+
 app = FastAPI()
 # For local dev:
 # uvicorn pkg.ai.app:app --host 0.0.0.0 --port 8000 --reload
@@ -29,12 +58,12 @@ async def root():
     return {"status": "ok", "message": "Voice Assistant WebSocket is running. Connect to /stream"}
 
 
-
 # ==== QUEUES ====
 PLAYBACK_IN_QUEUE = queue.Queue(maxsize=200)
 STT_INPUT_QUEUE = queue.Queue()
 TTT_INPUT_QUEUE = queue.Queue()
 TTS_INPUT_QUEUE = queue.Queue()
+
 
 # ==== MODELS ====
 STT = STTModelSelector.get_stt_model(STT_MODEL)
@@ -58,41 +87,55 @@ tts_processor = TextToSpeechStreamProcessor(
     output_stream_queue=PLAYBACK_IN_QUEUE,
 )
 
-stt_processor.start()
-ttt_processor.start()
-tts_processor.start()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Starting background processors...")
+    stt_processor.start()
+    ttt_processor.start()
+    tts_processor.start()
+    try:
+        yield
+    finally:
+        # Shutdown
+        logger.info("Stopping background processors...")
+        stt_processor.stop()
+        ttt_processor.stop()
+        tts_processor.stop()
+
+
+app.router.lifespan_context = lifespan
 
 
 @app.websocket("/stream")
 async def stream_endpoint(ws: WebSocket):
     await ws.accept()
-    print("Client connected.")
+    logger.info("Client connected.")
 
-    # ==== COMPONENTS ====
+    # Create fresh streamers for this connection
     audio_stream = RemoteAudioStreamConsumer(output_queue=STT_INPUT_QUEUE, ws=ws)
-    audio_producer = RemoteAudioStreamProducer(
-        input_queue=PLAYBACK_IN_QUEUE,
-        ws=ws,
-    )
+    audio_producer = RemoteAudioStreamProducer(input_queue=PLAYBACK_IN_QUEUE, ws=ws)
 
     audio_stream.start()
     audio_producer.start()
 
+    logger.info("Assistant running. Speak into the mic...")
+
     try:
-        print("Assistant running. Speak into the mic...")
         while True:
             await asyncio.sleep(1)
 
     except WebSocketDisconnect:
-        print("Client disconnected.")
+        logger.warning("Client disconnected.")
 
-    except Exception as e:
-        print("Stream error:", e)
+    except Exception:
+        logger.exception("Stream error")
 
     finally:
-        print("Shutting down...")
+        logger.info("Cleaning up connection resources...")
 
-        # async stops (with cancellation guard)
+        # stop stream tasks
         with contextlib.suppress(asyncio.CancelledError):
             await audio_stream.stop()
         with contextlib.suppress(asyncio.CancelledError):
@@ -100,10 +143,3 @@ async def stream_endpoint(ws: WebSocket):
 
         with contextlib.suppress(Exception):
             await ws.close()
-
-
-
-# # threaded components
-# stt_processor.stop()
-# ttt_processor.stop()
-# tts_processor.stop()

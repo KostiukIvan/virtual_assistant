@@ -1,8 +1,11 @@
 import asyncio
+import logging
 
 import sounddevice as sd
 
 import pkg.config as config
+
+logger = logging.getLogger(__name__)
 
 
 class LocalAudioProducer:
@@ -28,16 +31,16 @@ class LocalAudioProducer:
 
                     try:
                         stream.write(frame)
-                    except Exception as e:
-                        print(f"[LocalAudioProducer] Stream write error: {e}")
+                    except Exception:
+                        logger.exception("[LocalAudioProducer] Stream write error")
         except asyncio.CancelledError:
-            print("[LocalAudioProducer] Playback loop cancelled.")
+            logger.info("[LocalAudioProducer] Playback loop cancelled.")
             raise
 
     def start(self):
         if self.task is None:
             self.task = asyncio.create_task(self._loop())
-            print("LocalAudioProducer started.")
+            logger.info("LocalAudioProducer started.")
 
     async def stop(self):
         if self.task:
@@ -47,4 +50,4 @@ class LocalAudioProducer:
             except asyncio.CancelledError:
                 pass
             self.task = None
-        print("LocalAudioProducer stopped.")
+        logger.info("LocalAudioProducer stopped.")

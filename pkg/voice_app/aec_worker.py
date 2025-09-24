@@ -1,6 +1,9 @@
 import asyncio
+import logging
 
 import pkg.config as config
+
+logger = logging.getLogger(__name__)
 
 
 class AECWorker:
@@ -40,7 +43,9 @@ class AECWorker:
 
                 await asyncio.sleep(0.005)  # tune as needed
         except asyncio.CancelledError:
-            print("AEC worker was cancelled.")
+            logger.info("AEC worker was cancelled.")
+        except Exception:
+            logger.exception("AEC got exception")
 
     def start(self):
         if self._task is None:

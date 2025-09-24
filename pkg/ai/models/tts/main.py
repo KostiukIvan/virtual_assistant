@@ -1,10 +1,9 @@
+import logging
+
 import numpy as np
 
 # New imports for remote models
 import sounddevice as sd
-from pkg.ai.models.stt.stt_remote import RemoteSpeechToTextModel
-from pkg.ai.models.tts.tts_remote import RemoteTextToSpeechModel
-from pkg.ai.models.ttt.ttt_remote import RemoteTextToTextModel
 
 import pkg.config as config
 
@@ -13,27 +12,15 @@ from pkg.ai.models.stt.whisper import LocalSpeechToTextModel
 from pkg.ai.models.tts.tts_local import LocalTextToSpeechModel
 from pkg.ai.models.ttt.ttt_local import LocalTextToTextModel
 
+logger = logging.getLogger(__name__)
+
 
 # ===== Main Conversational Loop =====
 def main() -> None:
     # Init models
-    stt = (
-        LocalSpeechToTextModel(config.STT_MODEL)  # drop device if not supported
-        if config.STT_MODE == "local"
-        else RemoteSpeechToTextModel(config.STT_MODEL_REMOTE, hf_token=config.HF_API_TOKEN)
-    )
-
-    ttt = (
-        LocalTextToTextModel(config.TTT_MODEL)
-        if config.TTT_MODE == "local"
-        else RemoteTextToTextModel(config.TTT_MODEL_REMOTE, hf_token=config.HF_API_TOKEN)
-    )
-
-    tts = (
-        LocalTextToSpeechModel(config.TTS_MODEL)
-        if config.TTS_MODE == "local"
-        else RemoteTextToSpeechModel(config.TTS_MODEL_REMOTE, hf_token=config.HF_API_TOKEN)
-    )
+    stt = LocalSpeechToTextModel(config.STT_MODEL)
+    ttt = LocalTextToTextModel(config.TTT_MODEL)
+    tts = LocalTextToSpeechModel(config.TTS_MODEL)
 
     buffer = []
     FRAME_SAMPLES = config.AUDIO_FRAME_SAMPLES
@@ -46,7 +33,7 @@ def main() -> None:
         dtype=config.AUDIO_DTYPE,
         blocksize=FRAME_SAMPLES,
     ) as stream:
-        print("Listening... (Ctrl+C to stop)")
+        logger.info("Listening... (Ctrl+C to stop)")
         while True:
             audio_chunk, _ = stream.read(FRAME_SAMPLES)
             buffer.extend(audio_chunk.flatten())
@@ -60,11 +47,11 @@ def main() -> None:
                 if not text or len(text.strip()) < 2:
                     continue
 
-                print(f"User: {text}")
+                logger.info(f"User: {text}")
 
                 # TTT
                 reply = ttt.text_to_text(text)
-                print(f"Bot: {reply}")
+                logger.info(f"Bot: {reply}")
 
                 # TTS
                 audio_reply = tts.text_to_speech(reply)

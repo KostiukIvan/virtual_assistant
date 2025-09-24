@@ -1,5 +1,8 @@
+import logging
 import queue
 import threading
+
+logger = logging.getLogger(__name__)
 
 
 class TextToTextStreamProcessor:
@@ -59,17 +62,17 @@ class TextToTextStreamProcessor:
                     continue
 
                 # Generate a response using the TTT model
-                # print(user_text, end="")
+                logger.info(f"TTT received: '{user_text}'")
                 bot_response = self.ttt_model.text_to_text(user_text)
-                # print(bot_response, end="")
+                logger.info(f"TTT produced: '{bot_response[:10]}'")
 
                 # Put the final response into the output queue
                 self.output_stream_queue.put({"data": bot_response, "event": event})
 
             except queue.Empty:
                 continue
-            except Exception as e:
-                print("Error in TTT processing loop", str(e))
+            except Exception:
+                logger.exception("Error in TTT processing loop")
 
     def process_text(self) -> None:
         input_message = ""

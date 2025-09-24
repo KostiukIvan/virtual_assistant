@@ -35,6 +35,7 @@ TTT_MEMORY_MANAGER_SUMMARY_EVERY = 20
 # ============================== TTS ==============================
 # TTS_MODEL = "microsoft/speecht5_tts"
 TTS_MODEL = "microsoft/speecht5_tts"
+TTS_MAX_CHARS = 200
 
 # ============================== AUDIO CONFIG ==============================
 AUDIO_SAMPLE_RATE = 16000

@@ -40,7 +40,7 @@ class LocalTextToTextModel(TextToTextModel):
         )
         self.rag = RAGAssistant(knowledge_base=self.kb)
 
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model, use_auth_token=hf_token)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model, token=hf_token)
         # some tokenizers report huge values for model_max_length, guard it:
         try:
             self.model_max_len = int(self.tokenizer.model_max_length)
@@ -48,7 +48,7 @@ class LocalTextToTextModel(TextToTextModel):
             self.model_max_len = 2048  # safe fallback
 
         self.model_obj = AutoModelForCausalLM.from_pretrained(
-            self.model, use_auth_token=hf_token, device_map="auto"  # if you want GPU support
+            self.model, token=hf_token, device_map="auto"  # if you want GPU support
         )
 
         self.generator = pipeline("text2text-generation", tokenizer=self.tokenizer, model=self.model_obj)

@@ -34,22 +34,19 @@ class LocalTextToSpeechModel(TextToSpeechModel):
         Convert text to speech with safe chunking to avoid max-length errors.
         Returns: numpy array of waveform.
         """
-        max_len = self.model.config.max_position_embeddings  # model max tokens/frames
-        # Tokenize text
-        tokens = self.processor.tokenizer(text).input_ids
-        chunks = [tokens[i : i + max_len] for i in range(0, len(tokens), max_len)]
-
+        # Split text into smaller chunks (config.TTS_MAX_CHARS, e.g., 200–400)
+        chunks = [text[i : i + config.TTS_MAX_CHARS] for i in range(0, len(text), config.TTS_MAX_CHARS)]
         outputs = []
 
-        for chunk_tokens in chunks:
-            inputs = self.processor(tokenizer=chunk_tokens, return_tensors="pt").to(self.device)
+        for chunk_text in chunks:
+            inputs = self.processor(text=chunk_text, return_tensors="pt").to(self.device)
             with torch.no_grad():
                 speech_chunk = self.model.generate(
                     **inputs,
                     speaker_embeddings=self.speaker_embeddings,
                     vocoder=self.vocoder,
                 )
-            outputs.append(speech_chunk.cpu().numpy())  # TODO: Potential for speedup !!!
+            outputs.append(speech_chunk.cpu().numpy())
 
         # Concatenate all chunks into one waveform
         return np.concatenate(outputs, axis=-1)

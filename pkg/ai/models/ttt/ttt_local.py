@@ -51,7 +51,9 @@ class LocalTextToTextModel(TextToTextModel):
             self.model, use_auth_token=hf_token, device_map="auto"  # if you want GPU support
         )
 
-        self.generator = pipeline("text2text-generation", model=self.model_obj, device=self.device)
+        self.generator = pipeline(
+            "text2text-generation", tokenizer=self.tokenizer, model=self.model_obj, device=self.device
+        )
 
     def _num_tokens(self, text: str) -> int:
         # returns number of tokens for text

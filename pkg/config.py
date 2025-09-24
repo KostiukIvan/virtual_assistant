@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-LOCAL = True
+LOCAL = False
 
 # Client config
 if LOCAL:

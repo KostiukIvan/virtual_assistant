@@ -64,7 +64,7 @@ class TextToTextStreamProcessor:
                 # Generate a response using the TTT model
                 logger.info(f"TTT received: '{user_text}'")
                 bot_response = self.ttt_model.text_to_text(user_text)
-                logger.info(f"TTT produced: '{bot_response[:10]}'")
+                logger.info(f"TTT produced: '{bot_response}'")
 
                 # Put the final response into the output queue
                 self.output_stream_queue.put({"data": bot_response, "event": event})

@@ -52,7 +52,7 @@ class LocalTextToTextModel(TextToTextModel):
         )
 
         self.generator = pipeline(
-            "text2text-generation", tokenizer=self.tokenizer, model=self.model_obj, device=self.device
+            "text2text-generation", tokenizer=self.tokenizer, model=self.model_obj
         )
 
     def _num_tokens(self, text: str) -> int:
